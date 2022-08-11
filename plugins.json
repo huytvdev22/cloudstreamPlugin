@@ -1,0 +1,155 @@
+[
+    {
+        "iconUrl": "https://animevietsub.li/favicon.ico",
+        "fileHash": "sha256-32390fd02012319ff9616d45d2c738988c43d34eeba7206e80ffb72cee15de30",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/huytvdev22/cloudstreamPlugin",
+        "fileSize": 63672,
+        "status": 1,
+        "language": "vi",
+        "authors": [
+            "HuyTV"
+        ],
+        "tvTypes": [
+            "Anime",
+            "Movie",
+            "TvSeries"
+        ],
+        "version": 11,
+        "internalName": "AnimeVietsubProvider",
+        "description": "Xem Anime Vietsub ch\u1ea5t l\u01b0\u1ee3ng cao tr\u1ef1c tuy\u1ebfn (Phi\u00ean b\u1ea3n: 1.0.0 - Build: 71458fa - Ng\u00e0y: 03/09/2026 21:40)",
+        "url": "https://raw.githubusercontent.com/huytvdev22/cloudstreamPlugin/builds/AnimeVietsubProvider.cs3",
+        "name": "AnimeVietsubProvider"
+    },
+    {
+        "iconUrl": "https://chophim.app/branding/logo.png",
+        "fileHash": "sha256-72ae4560a3b06eb928e9380cc7b11f7da657c7730632a765c2ae3ef3c438b90b",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/huytvdev22/cloudstreamPlugin",
+        "fileSize": 57637,
+        "status": 1,
+        "language": "vi",
+        "authors": [
+            "HuyTV"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries",
+            "Anime"
+        ],
+        "version": 2,
+        "internalName": "ChophimProvider",
+        "description": "Ngu\u1ed3n xem phim Ch\u1ee3 Phim - Tr\u0103m phim m\u1ed9t ch\u1ee3 (Phi\u00ean b\u1ea3n: 1.0.0 - Build: 71458fa - Ng\u00e0y: 03/09/2026 21:41)",
+        "url": "https://raw.githubusercontent.com/huytvdev22/cloudstreamPlugin/builds/ChophimProvider.cs3",
+        "name": "ChophimProvider"
+    },
+    {
+        "iconUrl": "https://upload.wikimedia.org/wikipedia/commons/2/2f/Korduene_Logo.png",
+        "fileHash": "sha256-a253bb23cc37151babb85a4c7b1bc333198a1c24d4dc7da1ce80516dd81284a5",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/huytvdev22/cloudstreamPlugin",
+        "fileSize": 53434,
+        "status": 1,
+        "language": "en",
+        "authors": [
+            "Cloudburst",
+            "Luna712"
+        ],
+        "tvTypes": [
+            "Movie"
+        ],
+        "version": 1,
+        "internalName": "ExampleProvider",
+        "description": "Lorem ipsum",
+        "url": "https://raw.githubusercontent.com/huytvdev22/cloudstreamPlugin/builds/ExampleProvider.cs3",
+        "name": "ExampleProvider"
+    },
+    {
+        "iconUrl": "https://motchillw.sh/motchill.png",
+        "fileHash": "sha256-b5356da8eebd07b5393fe71b76057639456edec136394c1f928639e7fb81815d",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/huytvdev22/cloudstreamPlugin",
+        "fileSize": 57661,
+        "status": 1,
+        "language": "vi",
+        "authors": [
+            "HuyTV"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries",
+            "Anime"
+        ],
+        "version": 1,
+        "internalName": "MotchillProvider",
+        "description": "Ngu\u1ed3n xem phim Vietsub, Thuy\u1ebft minh t\u1eeb Motchill (Phi\u00ean b\u1ea3n: 1.0.0 - Build: 71458fa - Ng\u00e0y: 03/09/2026 21:41)",
+        "url": "https://raw.githubusercontent.com/huytvdev22/cloudstreamPlugin/builds/MotchillProvider.cs3",
+        "name": "MotchillProvider"
+    },
+    {
+        "iconUrl": "https://tramphim4.org/branding/logo-ui.webp",
+        "fileHash": "sha256-05e6a4b628e120d91d05374cd7e73d181558a37803ea69d41708f2a26e69e70b",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/huytvdev22/cloudstreamPlugin",
+        "fileSize": 62133,
+        "status": 1,
+        "language": "vi",
+        "authors": [
+            "HuyTV"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries",
+            "Anime"
+        ],
+        "version": 1,
+        "internalName": "TramphimProvider",
+        "description": "Xem phim ch\u1ea5t l\u01b0\u1ee3ng cao t\u1eeb ngu\u1ed3n Tr\u1ea1m Phim (Phi\u00ean b\u1ea3n: 1.0.0 - Build: 71458fa - Ng\u00e0y: 03/09/2026 21:41)",
+        "url": "https://raw.githubusercontent.com/huytvdev22/cloudstreamPlugin/builds/TramphimProvider.cs3",
+        "name": "TramphimProvider"
+    },
+    {
+        "iconUrl": "https://example.com/vieflix-icon.png",
+        "fileHash": "sha256-be069f9113d4face3ce94b6f3568954f83f64db23c25b8530ee51e2a744a8cda",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/huytvdev22/cloudstreamPlugin",
+        "fileSize": 58934,
+        "status": 1,
+        "language": "vi",
+        "authors": [
+            "HuyTV"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries",
+            "Anime"
+        ],
+        "version": 2,
+        "internalName": "VieflixProvider",
+        "description": "Xem phim ch\u1ea5t l\u01b0\u1ee3ng cao t\u1eeb ngu\u1ed3n Vieflix (Phi\u00ean b\u1ea3n: 1.0.0 - Build: 71458fa - Ng\u00e0y: 03/09/2026 21:41)",
+        "url": "https://raw.githubusercontent.com/huytvdev22/cloudstreamPlugin/builds/VieflixProvider.cs3",
+        "name": "VieflixProvider"
+    },
+    {
+        "iconUrl": "https://xemplay.uk/brand/xemplay-mark.png",
+        "fileHash": "sha256-c9dd20b9af1e3fd471821391a55e57be38430f8f07e3add44e4c24388a774c61",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/huytvdev22/cloudstreamPlugin",
+        "fileSize": 57514,
+        "status": 1,
+        "language": "vi",
+        "authors": [
+            "HuyTV"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries",
+            "Anime"
+        ],
+        "version": 2,
+        "internalName": "XemplayProvider",
+        "description": "Ngu\u1ed3n xem phim ch\u1ea5t l\u01b0\u1ee3ng cao t\u1eeb XemPlay (Phi\u00ean b\u1ea3n: 1.0.0 - Build: 71458fa - Ng\u00e0y: 03/09/2026 21:41)",
+        "url": "https://raw.githubusercontent.com/huytvdev22/cloudstreamPlugin/builds/XemplayProvider.cs3",
+        "name": "XemplayProvider"
+    }
+]

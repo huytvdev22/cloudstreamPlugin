@@ -1,0 +1,8 @@
+{
+    "name": "HuyTV Cloudstream Repository",
+    "description": "Kho tiện ích mở rộng Cloudstream của HuyTV",
+    "manifestVersion": 1,
+    "pluginLists": [
+      "https://raw.githubusercontent.com/huytvdev22/cloudstreamPlugin/builds/plugins.json"
+    ]
+}
