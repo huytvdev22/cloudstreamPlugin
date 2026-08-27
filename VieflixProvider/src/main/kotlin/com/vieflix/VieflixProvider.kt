@@ -149,16 +149,73 @@ class VieflixProvider : MainAPI() {
                 html.substring(startIndex)
             }
             
-            // Tìm linkM3u8 trực tiếp (VIP)
-            val m3u8Match = Regex("""\\"linkM3u8\\":\\"([^\\"]+)\\"""").find(block)
-            if (m3u8Match != null) {
-                val m3u8Url = m3u8Match.groupValues[1]
-                if (m3u8Url.isNotBlank() && m3u8Url.contains(".m3u8")) {
+            // Tìm linkM3u8 thủ công (không dùng Regex) để tránh lỗi escape characters trên Android
+            val m3u8Key = "\\\"linkM3u8\\\":\\\""
+            val m3Idx = block.indexOf(m3u8Key)
+            if (m3Idx != -1) {
+                val endM3Idx = block.indexOf("\\\"", m3Idx + m3u8Key.length)
+                if (endM3Idx != -1) {
+                    val m3u8Url = block.substring(m3Idx + m3u8Key.length, endM3Idx)
+                    if (m3u8Url.isNotBlank() && m3u8Url.contains(".m3u8")) {
+                        callback.invoke(
+                            ExtractorLink(
+                                source = name,
+                                name = "Vieflix VIP",
+                                url = m3u8Url,
+                                referer = mainUrl,
+                                quality = Qualities.P1080.value,
+                                type = ExtractorLinkType.M3U8
+                            )
+                        )
+                    }
+                }
+            }
+            
+            // Tìm linkEmbed thủ công
+            val embedKey = "\\\"linkEmbed\\\":\\\""
+            val emIdx = block.indexOf(embedKey)
+            if (emIdx != -1) {
+                val endEmIdx = block.indexOf("\\\"", emIdx + embedKey.length)
+                if (endEmIdx != -1) {
+                    val embedUrl = block.substring(emIdx + embedKey.length, endEmIdx)
+                    if (embedUrl.isNotBlank()) {
+                        // Nếu embed có chứa tham số url=link.m3u8 thì trích xuất luôn
+                        if (embedUrl.contains("url=") && embedUrl.contains(".m3u8")) {
+                            val m3u8 = embedUrl.substringAfter("url=").substringBefore("&")
+                            callback.invoke(
+                                ExtractorLink(
+                                    source = name,
+                                    name = "Embed VIP",
+                                    url = m3u8,
+                                    referer = mainUrl,
+                                    quality = Qualities.P1080.value,
+                                    type = ExtractorLinkType.M3U8
+                                )
+                            )
+                        } else {
+                            loadExtractor(embedUrl, mainUrl, subtitleCallback, callback)
+                        }
+                    }
+                }
+            }
+            
+            startIndex = html.indexOf(searchSlug, startIndex + searchSlug.length)
+        }
+
+        // Cứu cánh cuối cùng: Nếu vòng lặp trên không tìm thấy link nào (có thể do slug lệch),
+        // Ta tìm linkM3u8 đầu tiên trong toàn bộ source code
+        val fallbackKey = "\\\"linkM3u8\\\":\\\""
+        val fallbackIdx = html.indexOf(fallbackKey)
+        if (fallbackIdx != -1) {
+            val endFbIdx = html.indexOf("\\\"", fallbackIdx + fallbackKey.length)
+            if (endFbIdx != -1) {
+                val fbM3u8 = html.substring(fallbackIdx + fallbackKey.length, endFbIdx)
+                if (fbM3u8.isNotBlank() && fbM3u8.contains(".m3u8")) {
                     callback.invoke(
                         ExtractorLink(
                             source = name,
-                            name = "Vieflix VIP",
-                            url = m3u8Url,
+                            name = "Vieflix Auto",
+                            url = fbM3u8,
                             referer = mainUrl,
                             quality = Qualities.P1080.value,
                             type = ExtractorLinkType.M3U8
@@ -166,32 +223,6 @@ class VieflixProvider : MainAPI() {
                     )
                 }
             }
-            
-            // Tìm linkEmbed (phụ)
-            val embedMatch = Regex("""\\"linkEmbed\\":\\"([^\\"]+)\\"""").find(block)
-            if (embedMatch != null) {
-                val embedUrl = embedMatch.groupValues[1]
-                if (embedUrl.isNotBlank()) {
-                    // Nếu embed có chứa tham số url=link.m3u8 thì trích xuất luôn
-                    if (embedUrl.contains("url=") && embedUrl.contains(".m3u8")) {
-                        val m3u8 = embedUrl.substringAfter("url=").substringBefore("&")
-                        callback.invoke(
-                            ExtractorLink(
-                                source = name,
-                                name = "Embed VIP",
-                                url = m3u8,
-                                referer = mainUrl,
-                                quality = Qualities.P1080.value,
-                                type = ExtractorLinkType.M3U8
-                            )
-                        )
-                    } else {
-                        loadExtractor(embedUrl, mainUrl, subtitleCallback, callback)
-                    }
-                }
-            }
-            
-            startIndex = html.indexOf(searchSlug, startIndex + searchSlug.length)
         }
 
         return true
