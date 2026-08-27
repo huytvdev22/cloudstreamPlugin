@@ -134,15 +134,29 @@ class VieflixProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val html = app.get(data).text
+        // Lấy slug của tập (tap-full, tap-1, tap-2, ...)
         val slug = data.substringAfterLast("/").substringBefore("?")
-        
-        // Tìm kiếm chuỗi định danh tập phim trong cấu trúc JSON state
-        // Ký tự thực tế trong HTML: \"slug\":\"tap-full\"
-        // => Kotlin string literal: \"slug\" = backslash + quote + slug + backslash + quote
+
+        // Luôn GET trang phim GỐC (không phải trang tập) vì trang gốc
+        // chứa toàn bộ JSON data cho tất cả tập, đảm bảo luôn tìm được link.
+        // Ví dụ: data = "https://vieflix.top/phim/ten-cau-la-gi/tap-full?sv=0&lang=0"
+        //   -> movieUrl = "https://vieflix.top/phim/ten-cau-la-gi"
+        // Nếu data là URL phim gốc (không có /tap-), dùng thẳng.
+        val movieUrl = if (data.contains("/tap-")) {
+            data.substringBefore("/tap-")
+        } else {
+            data.substringBefore("?")
+        }
+
+        val html = app.get(movieUrl).text
+
+        // Dữ liệu trong HTML được escape dạng JSON-in-string:
+        // Ký tự thực trong HTML: \"slug\":\"tap-full\"
+        // Đây là backslash(92) + quote(34) + ... nên searchSlug = \"slug\":\"$slug\"
         val searchSlug = "\"slug\":\"$slug\""
         var startIndex = html.indexOf(searchSlug)
-        
+        var foundAny = false
+
         while (startIndex != -1) {
             val endOfBlock = html.indexOf("\"slug\":\"", startIndex + searchSlug.length)
             val block = if (endOfBlock != -1) {
@@ -150,8 +164,8 @@ class VieflixProvider : MainAPI() {
             } else {
                 html.substring(startIndex)
             }
-            
-            // Tìm linkM3u8: ký tự trong HTML là \"linkM3u8\":\"<url>\"
+
+            // Tìm linkM3u8: \"linkM3u8\":\"<url>\"
             val m3u8Key = "\"linkM3u8\":\""
             val m3Idx = block.indexOf(m3u8Key)
             if (m3Idx != -1) {
@@ -160,10 +174,11 @@ class VieflixProvider : MainAPI() {
                 if (endM3Idx != -1) {
                     val m3u8Url = block.substring(valueStart, endM3Idx)
                     if (m3u8Url.isNotBlank() && m3u8Url.contains(".m3u8")) {
+                        foundAny = true
                         callback.invoke(
                             ExtractorLink(
                                 source = name,
-                                name = "Vieflix VIP",
+                                name = "Vieflix M3U8",
                                 url = m3u8Url,
                                 referer = mainUrl,
                                 quality = Qualities.P1080.value,
@@ -173,8 +188,8 @@ class VieflixProvider : MainAPI() {
                     }
                 }
             }
-            
-            // Tìm linkEmbed: ký tự trong HTML là \"linkEmbed\":\"<url>\"
+
+            // Tìm linkEmbed: \"linkEmbed\":\"<url>\"
             val embedKey = "\"linkEmbed\":\""
             val emIdx = block.indexOf(embedKey)
             if (emIdx != -1) {
@@ -183,13 +198,14 @@ class VieflixProvider : MainAPI() {
                 if (endEmIdx != -1) {
                     val embedUrl = block.substring(embedValueStart, endEmIdx)
                     if (embedUrl.isNotBlank()) {
-                        // Nếu embed có chứa tham số url=link.m3u8 thì trích xuất luôn
+                        foundAny = true
+                        // Nếu embed chứa tham số url=*.m3u8 thì trích xuất trực tiếp
                         if (embedUrl.contains("url=") && embedUrl.contains(".m3u8")) {
                             val m3u8 = embedUrl.substringAfter("url=").substringBefore("&")
                             callback.invoke(
                                 ExtractorLink(
                                     source = name,
-                                    name = "Embed VIP",
+                                    name = "Vieflix Embed",
                                     url = m3u8,
                                     referer = mainUrl,
                                     quality = Qualities.P1080.value,
@@ -202,30 +218,31 @@ class VieflixProvider : MainAPI() {
                     }
                 }
             }
-            
+
             startIndex = html.indexOf(searchSlug, startIndex + searchSlug.length)
         }
 
-        // Cứu cánh cuối cùng: Nếu vòng lặp trên không tìm thấy link nào,
-        // Ta tìm linkM3u8 đầu tiên trong toàn bộ source code
-        val fallbackKey = "\"linkM3u8\":\""
-        val fallbackIdx = html.indexOf(fallbackKey)
-        if (fallbackIdx != -1) {
-            val fbValueStart = fallbackIdx + fallbackKey.length
-            val endFbIdx = html.indexOf("\"", fbValueStart)
-            if (endFbIdx != -1) {
-                val fbM3u8 = html.substring(fbValueStart, endFbIdx)
-                if (fbM3u8.isNotBlank() && fbM3u8.contains(".m3u8")) {
-                    callback.invoke(
-                        ExtractorLink(
-                            source = name,
-                            name = "Vieflix Auto",
-                            url = fbM3u8,
-                            referer = mainUrl,
-                            quality = Qualities.P1080.value,
-                            type = ExtractorLinkType.M3U8
+        // Fallback: Nếu không tìm thấy theo slug, lấy linkM3u8 đầu tiên trong toàn bộ HTML
+        if (!foundAny) {
+            val fallbackKey = "\"linkM3u8\":\""
+            val fallbackIdx = html.indexOf(fallbackKey)
+            if (fallbackIdx != -1) {
+                val fbValueStart = fallbackIdx + fallbackKey.length
+                val endFbIdx = html.indexOf("\"", fbValueStart)
+                if (endFbIdx != -1) {
+                    val fbM3u8 = html.substring(fbValueStart, endFbIdx)
+                    if (fbM3u8.isNotBlank() && fbM3u8.contains(".m3u8")) {
+                        callback.invoke(
+                            ExtractorLink(
+                                source = name,
+                                name = "Vieflix Auto",
+                                url = fbM3u8,
+                                referer = mainUrl,
+                                quality = Qualities.P1080.value,
+                                type = ExtractorLinkType.M3U8
+                            )
                         )
-                    )
+                    }
                 }
             }
         }
