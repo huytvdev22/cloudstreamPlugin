@@ -150,15 +150,16 @@ class VieflixProvider : MainAPI() {
 
         val html = app.get(movieUrl).text
 
-        // Dữ liệu trong HTML được escape dạng JSON-in-string:
-        // Ký tự thực trong HTML: \"slug\":\"tap-full\"
-        // Đây là backslash(92) + quote(34) + ... nên searchSlug = \"slug\":\"$slug\"
-        val searchSlug = "\"slug\":\"$slug\""
+        // Dữ liệu trong HTML (Next.js) được escape dạng JSON-in-string:
+        // Ký tự THỰC trong HTML: \"slug\":\"tap-full\"  (backslash=92, quote=34)
+        // Kotlin: \\\" = backslash+quote trong JVM string (ĐÚNG)
+        //         \"   = chỉ quote trong JVM string (SAI - không khớp HTML)
+        val searchSlug = "\\\"slug\\\":\\\"$slug\\\""
         var startIndex = html.indexOf(searchSlug)
         var foundAny = false
 
         while (startIndex != -1) {
-            val endOfBlock = html.indexOf("\"slug\":\"", startIndex + searchSlug.length)
+            val endOfBlock = html.indexOf("\\\"slug\\\":\\\"", startIndex + searchSlug.length)
             val block = if (endOfBlock != -1) {
                 html.substring(startIndex, endOfBlock)
             } else {
@@ -166,11 +167,11 @@ class VieflixProvider : MainAPI() {
             }
 
             // Tìm linkM3u8: \"linkM3u8\":\"<url>\"
-            val m3u8Key = "\"linkM3u8\":\""
+            val m3u8Key = "\\\"linkM3u8\\\":\\\""
             val m3Idx = block.indexOf(m3u8Key)
             if (m3Idx != -1) {
                 val valueStart = m3Idx + m3u8Key.length
-                val endM3Idx = block.indexOf("\"", valueStart)
+                val endM3Idx = block.indexOf("\\\"", valueStart)
                 if (endM3Idx != -1) {
                     val m3u8Url = block.substring(valueStart, endM3Idx)
                     if (m3u8Url.isNotBlank() && m3u8Url.contains(".m3u8")) {
@@ -190,11 +191,11 @@ class VieflixProvider : MainAPI() {
             }
 
             // Tìm linkEmbed: \"linkEmbed\":\"<url>\"
-            val embedKey = "\"linkEmbed\":\""
+            val embedKey = "\\\"linkEmbed\\\":\\\""
             val emIdx = block.indexOf(embedKey)
             if (emIdx != -1) {
                 val embedValueStart = emIdx + embedKey.length
-                val endEmIdx = block.indexOf("\"", embedValueStart)
+                val endEmIdx = block.indexOf("\\\"", embedValueStart)
                 if (endEmIdx != -1) {
                     val embedUrl = block.substring(embedValueStart, endEmIdx)
                     if (embedUrl.isNotBlank()) {
@@ -224,11 +225,11 @@ class VieflixProvider : MainAPI() {
 
         // Fallback: Nếu không tìm thấy theo slug, lấy linkM3u8 đầu tiên trong toàn bộ HTML
         if (!foundAny) {
-            val fallbackKey = "\"linkM3u8\":\""
+            val fallbackKey = "\\\"linkM3u8\\\":\\\""
             val fallbackIdx = html.indexOf(fallbackKey)
             if (fallbackIdx != -1) {
                 val fbValueStart = fallbackIdx + fallbackKey.length
-                val endFbIdx = html.indexOf("\"", fbValueStart)
+                val endFbIdx = html.indexOf("\\\"", fbValueStart)
                 if (endFbIdx != -1) {
                     val fbM3u8 = html.substring(fbValueStart, endFbIdx)
                     if (fbM3u8.isNotBlank() && fbM3u8.contains(".m3u8")) {
