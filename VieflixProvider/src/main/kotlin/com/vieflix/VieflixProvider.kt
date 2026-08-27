@@ -9,7 +9,7 @@ import com.lagradost.cloudstream3.utils.Qualities
  * Provider khai thác dữ liệu từ web Vieflix (Mẫu cào HTML DOM bằng Jsoup)
  */
 class VieflixProvider : MainAPI() {
-    override var mainUrl = "https://vieflix.site"
+    override var mainUrl = "https://vieflix.top"
     override var name = "Vieflix"
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime)
     override var lang = "vi"
@@ -19,21 +19,24 @@ class VieflixProvider : MainAPI() {
     // 1. CẤU HÌNH MỤC TRANG CHỦ
     // ==========================================
     override val mainPage = mainPageOf(
-        "$mainUrl/phim-moi?page=" to "Phim Mới Cập Nhật",
-        "$mainUrl/phim-bo?page=" to "Phim Bộ",
-        "$mainUrl/phim-le?page=" to "Phim Lẻ"
+        "$mainUrl/duyet-tim?sortField=year&page=" to "Phim Mới",
+        "$mainUrl/loai-phim/phim-bo?page=" to "Phim Bộ",
+        "$mainUrl/loai-phim/phim-le?page=" to "Phim Lẻ",
+        "$mainUrl/loai-phim/tv-shows?page=" to "TV Shows",
+        "$mainUrl/chu-de/hoat-hinh?page=" to "Hoạt Hình"
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val url = "${request.data}$page"
         val document = app.get(url).document
 
-        val homeItems = document.select("div.film-item, div.movie-card").map { element ->
-            val title = element.selectFirst(".title, h3, .name")?.text() ?: ""
-            val href = fixUrl(element.selectFirst("a")?.attr("href") ?: "")
-            val poster = element.selectFirst("img")?.let {
-                it.attr("data-src").ifEmpty { it.attr("src") }
-            }
+        val homeItems = document.select("a[href^=/phim/]").mapNotNull { element ->
+            val img = element.selectFirst("img")
+            val title = img?.attr("alt")?.ifEmpty { element.text() } ?: element.text()
+            val href = fixUrl(element.attr("href"))
+            val poster = img?.attr("src")
+
+            if (title.isBlank()) return@mapNotNull null
 
             newMovieSearchResponse(title, href, TvType.Movie) {
                 this.posterUrl = poster
@@ -50,12 +53,13 @@ class VieflixProvider : MainAPI() {
         val searchUrl = "$mainUrl/search?keyword=$query"
         val document = app.get(searchUrl).document
 
-        return document.select("div.film-item, div.movie-card").map { element ->
-            val title = element.selectFirst(".title, h3, .name")?.text() ?: ""
-            val href = fixUrl(element.selectFirst("a")?.attr("href") ?: "")
-            val poster = element.selectFirst("img")?.let {
-                it.attr("data-src").ifEmpty { it.attr("src") }
-            }
+        return document.select("a[href^=/phim/]").mapNotNull { element ->
+            val img = element.selectFirst("img")
+            val title = img?.attr("alt")?.ifEmpty { element.text() } ?: element.text()
+            val href = fixUrl(element.attr("href"))
+            val poster = img?.attr("src")
+            
+            if (title.isBlank()) return@mapNotNull null
 
             newMovieSearchResponse(title, href, TvType.Movie) {
                 this.posterUrl = poster
