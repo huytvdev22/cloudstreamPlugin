@@ -115,23 +115,33 @@ class VieflixProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val document = app.get(data).document
-        val playerIframe = document.selectFirst("iframe#player, .player-container iframe")?.attr("src")
-
-        // Nếu tìm thấy player iframe hoặc stream link
-        playerIframe?.let { iframeUrl ->
-            // Ví dụ trích xuất luồng trực tiếp nếu có:
-            if (iframeUrl.contains(".m3u8")) {
+        val html = app.get(data).text
+        val slug = data.substringAfterLast("/").substringBefore("?")
+        
+        // Cố gắng tìm link m3u8 trực tiếp từ JSON state (thường cho server VIP)
+        val m3u8Regex = Regex("""\\"slug\\":\\"$slug\\".*?\\"linkM3u8\\":\\"([^\\"]+)\\"""")
+        m3u8Regex.findAll(html).forEach { match ->
+            val m3u8Url = match.groupValues[1]
+            if (m3u8Url.isNotBlank() && m3u8Url.contains(".m3u8")) {
                 callback.invoke(
                     ExtractorLink(
                         source = name,
-                        name = "Vieflix Stream",
-                        url = iframeUrl,
+                        name = "Vieflix VIP",
+                        url = m3u8Url,
                         referer = mainUrl,
                         quality = Qualities.P1080.value,
                         type = ExtractorLinkType.M3U8
                     )
                 )
+            }
+        }
+        
+        // Tìm các link embed (phụ) để dự phòng
+        val embedRegex = Regex("""\\"slug\\":\\"$slug\\".*?\\"linkEmbed\\":\\"([^\\"]+)\\"""")
+        embedRegex.findAll(html).forEach { match ->
+            val embedUrl = match.groupValues[1]
+            if (embedUrl.isNotBlank()) {
+                loadExtractor(embedUrl, mainUrl, subtitleCallback, callback)
             }
         }
 
