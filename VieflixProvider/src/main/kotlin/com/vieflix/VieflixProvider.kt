@@ -72,21 +72,26 @@ class VieflixProvider : MainAPI() {
     // ==========================================
     override suspend fun load(url: String): LoadResponse {
         val document = app.get(url).document
-        val title = document.selectFirst("h1.title, .film-info h1")?.text() ?: "Không có tên"
-        val poster = document.selectFirst(".poster img, .film-poster img")?.let {
-            it.attr("data-src").ifEmpty { it.attr("src") }
-        }
-        val plot = document.selectFirst(".description, .synopsis, .film-content")?.text()
+        
+        val title = document.selectFirst("h1")?.text() ?: "Không có tên"
+        val poster = document.selectFirst("img[src*=/movies/]")?.attr("src") 
+            ?: document.selectFirst("img")?.attr("src")
+            
+        val plot = document.select("p").map { it.text() }.firstOrNull { it.length > 50 }
+            ?.substringAfter("Giới thiệu:")?.trim()
 
-        val episodeElements = document.select(".episodes a, ul.list-episode a")
-        val episodesList = episodeElements.mapIndexed { index, ep ->
+        val episodeElements = document.select("a[href*=/tap-]")
+        val episodesList = episodeElements.mapIndexedNotNull { index, ep ->
             val epHref = fixUrl(ep.attr("href"))
-            val epName = ep.text().ifEmpty { "Tập ${index + 1}" }
+            val epNumStr = epHref.substringAfter("/tap-").substringBefore("?").toIntOrNull()
+            val epNum = epNumStr ?: (index + 1)
+            val epName = ep.text().ifEmpty { "Tập $epNum" }
+            
             newEpisode(epHref) {
                 this.name = epName
-                this.episode = index + 1
+                this.episode = epNum
             }
-        }
+        }.distinctBy { it.data }
 
         return if (episodesList.size > 1) {
             newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodesList) {
