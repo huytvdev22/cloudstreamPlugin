@@ -71,14 +71,29 @@ class VieflixProvider : MainAPI() {
     // 3. CHI TIẾT PHIM & DANH SÁCH TẬP
     // ==========================================
     override suspend fun load(url: String): LoadResponse {
-        val document = app.get(url).document
+        val html = app.get(url).text
+        val document = Jsoup.parse(html)
         
         val title = document.selectFirst("h1")?.text() ?: "Không có tên"
         val poster = document.selectFirst("img[src*=/movies/]")?.attr("src") 
             ?: document.selectFirst("img")?.attr("src")
             
-        val plot = document.select("p").map { it.text() }.firstOrNull { it.length > 50 }
-            ?.substringAfter("Giới thiệu:")?.trim()
+        // Trích xuất metadata từ Regex và HTML DOM
+        val plotRegex = Regex("""Giới thiệu:.*?<p[^>]*>(.*?)</p>""")
+        val plot = plotRegex.find(html)?.groupValues?.get(1)?.replace(Regex("""<[^>]*>"""), "")?.trim() 
+            ?: document.select("p").map { it.text() }.firstOrNull { it.length > 50 }?.substringAfter("Giới thiệu:")?.trim()
+            
+        val durationRegex = Regex("""Thời lượng:[^0-9]*([0-9]+)""")
+        val duration = durationRegex.find(html)?.groupValues?.get(1)?.toIntOrNull()
+
+        val yearRegex = Regex("""\b(19\d{2}|20\d{2})\b""")
+        val year = yearRegex.find(html)?.groupValues?.get(1)?.toIntOrNull()
+        
+        val ratingRegex = Regex("""IMDb[^0-9]*([0-9.]+)""")
+        val ratingMatch = ratingRegex.find(html)?.groupValues?.get(1)?.toDoubleOrNull()
+        val rating = ratingMatch?.let { (it * 1000).toInt() }
+        
+        val tags = document.select("a[href*=/the-loai/], a[href*=/quoc-gia/]").map { it.text() }.filter { it.isNotBlank() }
 
         val episodeElements = document.select("a[href*=/tap-]")
         val episodesList = episodeElements.mapIndexedNotNull { index, ep ->
@@ -97,11 +112,19 @@ class VieflixProvider : MainAPI() {
             newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodesList) {
                 this.posterUrl = poster
                 this.plot = plot
+                this.year = year
+                this.rating = rating
+                this.duration = duration
+                this.tags = tags
             }
         } else {
             newMovieLoadResponse(title, url, TvType.Movie, episodesList.firstOrNull()?.data ?: url) {
                 this.posterUrl = poster
                 this.plot = plot
+                this.year = year
+                this.rating = rating
+                this.duration = duration
+                this.tags = tags
             }
         }
     }
