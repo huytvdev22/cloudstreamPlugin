@@ -50,7 +50,7 @@ class VieflixProvider : MainAPI() {
     // 2. TÌM KIẾM
     // ==========================================
     override suspend fun search(query: String): List<SearchResponse> {
-        val searchUrl = "$mainUrl/search?keyword=$query"
+        val searchUrl = "$mainUrl/duyet-tim?search=$query"
         val document = app.get(searchUrl).document
 
         return document.select("a[href^=/phim/]").mapNotNull { element ->
