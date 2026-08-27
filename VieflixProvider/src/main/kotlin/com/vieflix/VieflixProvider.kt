@@ -4,6 +4,7 @@ import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.Qualities
+import org.jsoup.Jsoup
 
 /**
  * Provider khai thác dữ liệu từ web Vieflix (Mẫu cào HTML DOM bằng Jsoup)
@@ -89,10 +90,6 @@ class VieflixProvider : MainAPI() {
         val yearRegex = Regex("""\b(19\d{2}|20\d{2})\b""")
         val year = yearRegex.find(html)?.groupValues?.get(1)?.toIntOrNull()
         
-        val ratingRegex = Regex("""IMDb[^0-9]*([0-9.]+)""")
-        val ratingMatch = ratingRegex.find(html)?.groupValues?.get(1)?.toDoubleOrNull()
-        val rating = ratingMatch?.let { (it * 1000).toInt() }
-        
         val tags = document.select("a[href*=/the-loai/], a[href*=/quoc-gia/]").map { it.text() }.filter { it.isNotBlank() }
 
         val episodeElements = document.select("a[href*=/tap-]")
@@ -113,7 +110,6 @@ class VieflixProvider : MainAPI() {
                 this.posterUrl = poster
                 this.plot = plot
                 this.year = year
-                this.rating = rating
                 this.duration = duration
                 this.tags = tags
             }
@@ -122,7 +118,6 @@ class VieflixProvider : MainAPI() {
                 this.posterUrl = poster
                 this.plot = plot
                 this.year = year
-                this.rating = rating
                 this.duration = duration
                 this.tags = tags
             }
