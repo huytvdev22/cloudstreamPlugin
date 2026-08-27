@@ -150,7 +150,7 @@ class VieflixProvider : MainAPI() {
             }
             
             // Tìm linkM3u8 trực tiếp (VIP)
-            val m3u8Match = Regex("""\\"linkM3u8\\":\\"([^\\"]+)\"""").find(block)
+            val m3u8Match = Regex("""\\"linkM3u8\\":\\"([^\\"]+)\\"""").find(block)
             if (m3u8Match != null) {
                 val m3u8Url = m3u8Match.groupValues[1]
                 if (m3u8Url.isNotBlank() && m3u8Url.contains(".m3u8")) {
@@ -168,7 +168,7 @@ class VieflixProvider : MainAPI() {
             }
             
             // Tìm linkEmbed (phụ)
-            val embedMatch = Regex("""\\"linkEmbed\\":\\"([^\\"]+)\"""").find(block)
+            val embedMatch = Regex("""\\"linkEmbed\\":\\"([^\\"]+)\\"""").find(block)
             if (embedMatch != null) {
                 val embedUrl = embedMatch.groupValues[1]
                 if (embedUrl.isNotBlank()) {
