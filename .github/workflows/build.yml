@@ -48,9 +48,9 @@ jobs:
       - name: Build Plugins
         run: |
           cd $GITHUB_WORKSPACE/src
-          if [ -f "JavaRunTest/src/main/java/com/vieflix/VieflixLogic.java" ]; then
+          if [ -d "JavaRunTest/src/main/java/com/vieflix" ]; then
             mkdir -p VieflixProvider/src/main/java/com/vieflix
-            cp -f JavaRunTest/src/main/java/com/vieflix/VieflixLogic.java VieflixProvider/src/main/java/com/vieflix/VieflixLogic.java
+            cp -rf JavaRunTest/src/main/java/com/vieflix/* VieflixProvider/src/main/java/com/vieflix/
           fi
           chmod +x gradlew
           ./gradlew make makePluginsJson
