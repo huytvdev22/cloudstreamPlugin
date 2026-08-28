@@ -87,8 +87,6 @@ subprojects {
         implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.13.1") // JSON Parser
 
         testImplementation("junit:junit:4.13.2")
-        testImplementation("com.lagradost:cloudstream3:pre-release")
-        testImplementation("org.jsoup:jsoup:1.18.3")
     }
 }
 

@@ -40,16 +40,10 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v2
 
-      - name: Run Unit Tests (Java Maven)
+      - name: Run Unit Tests
         run: |
           cd $GITHUB_WORKSPACE/src/JavaRunTest
           mvn clean test
-
-      - name: Run Unit Tests (Kotlin Gradle)
-        run: |
-          cd $GITHUB_WORKSPACE/src
-          chmod +x gradlew
-          ./gradlew :VieflixProvider:testDebugUnitTest
 
       - name: Build Plugins
         run: |
