@@ -40,9 +40,18 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v2
 
+      - name: Run Unit Tests
+        run: |
+          cd $GITHUB_WORKSPACE/src/JavaRunTest
+          mvn clean test
+
       - name: Build Plugins
         run: |
           cd $GITHUB_WORKSPACE/src
+          if [ -f "JavaRunTest/src/main/java/com/vieflix/VieflixLogic.java" ]; then
+            mkdir -p VieflixProvider/src/main/java/com/vieflix
+            cp -f JavaRunTest/src/main/java/com/vieflix/VieflixLogic.java VieflixProvider/src/main/java/com/vieflix/VieflixLogic.java
+          fi
           chmod +x gradlew
           ./gradlew make makePluginsJson
           cp **/build/*.cs3 $GITHUB_WORKSPACE/builds

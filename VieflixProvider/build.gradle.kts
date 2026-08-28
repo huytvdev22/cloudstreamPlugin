@@ -20,3 +20,16 @@ cloudstream {
     language = "vi"
     iconUrl = "https://example.com/vieflix-icon.png"
 }
+
+tasks.register<Copy>("syncJavaFromTest") {
+    val sourceFile = file("${rootProject.projectDir}/JavaRunTest/src/main/java/com/vieflix/VieflixLogic.java")
+    if (sourceFile.exists()) {
+        from(sourceFile)
+        into(file("src/main/java/com/vieflix"))
+    }
+}
+
+tasks.named("preBuild") {
+    dependsOn("syncJavaFromTest")
+}
+
