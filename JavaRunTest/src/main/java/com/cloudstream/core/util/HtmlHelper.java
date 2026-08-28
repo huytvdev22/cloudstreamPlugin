@@ -1,9 +1,9 @@
-package com.vieflix.util;
+package com.cloudstream.core.util;
 
 import org.jsoup.nodes.Element;
 
 /**
- * Các hàm tiện ích xử lý DOM / HTML bằng Jsoup, tái sử dụng cho các Provider.
+ * Các hàm tiện ích xử lý DOM / HTML bằng Jsoup, tái sử dụng cho mọi Provider.
  */
 public class HtmlHelper {
 

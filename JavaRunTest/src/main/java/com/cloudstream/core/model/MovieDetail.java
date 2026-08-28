@@ -1,9 +1,10 @@
-package com.vieflix.model;
+package com.cloudstream.core.model;
 
 import java.util.List;
 
 /**
  * Đại diện cho thông tin chi tiết một bộ phim và danh sách tập của phim đó.
+ * Dùng chung cho tất cả các Provider.
  */
 public class MovieDetail {
     public final String title;

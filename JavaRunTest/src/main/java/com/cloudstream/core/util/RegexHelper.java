@@ -1,10 +1,10 @@
-package com.vieflix.util;
+package com.cloudstream.core.util;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Các hàm tiện ích xử lý Regex an toàn và tái sử dụng cho các Provider.
+ * Các hàm tiện ích xử lý Regex an toàn và tái sử dụng cho mọi Provider.
  */
 public class RegexHelper {
 

@@ -1,12 +1,12 @@
-package com.vieflix.parser;
+package com.vieflix;
 
-import com.vieflix.core.MovieParser;
-import com.vieflix.model.EpisodeItem;
-import com.vieflix.model.MovieDetail;
-import com.vieflix.model.MovieItem;
-import com.vieflix.model.VideoLink;
-import com.vieflix.util.HtmlHelper;
-import com.vieflix.util.RegexHelper;
+import com.cloudstream.core.model.EpisodeItem;
+import com.cloudstream.core.model.MovieDetail;
+import com.cloudstream.core.model.MovieItem;
+import com.cloudstream.core.model.VideoLink;
+import com.cloudstream.core.parser.MovieParser;
+import com.cloudstream.core.util.HtmlHelper;
+import com.cloudstream.core.util.RegexHelper;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -39,7 +39,6 @@ public class VieflixParser implements MovieParser {
         for (Element element : elements) {
             Element img = element.selectFirst("img");
 
-            // Ưu tiên lấy alt của ảnh, fallback về text của thẻ <a>
             String title = (img != null) ? img.attr("alt") : "";
             if (title.isEmpty()) title = element.text();
             if (title.trim().isEmpty()) continue;
@@ -90,16 +89,12 @@ public class VieflixParser implements MovieParser {
         return new MovieDetail(title, posterUrl, plot, year, duration, tags, episodes);
     }
 
-    /**
-     * Bóc tách mô tả tóm tắt nội dung phim.
-     */
     private String parsePlot(String html, Document document) {
         String plot = RegexHelper.extractGroup(html, "Gi\u1edbi thi\u1ec7u:.*?<p[^>]*>(.*?)</p>", 1);
         if (plot != null) {
             return plot.replaceAll("<[^>]*>", "").trim();
         }
 
-        // Fallback: Tìm thẻ <p> đầu tiên có độ dài > 50 ký tự
         for (Element p : document.select("p")) {
             String text = p.text();
             if (text.length() > 50) {
@@ -111,9 +106,6 @@ public class VieflixParser implements MovieParser {
         return null;
     }
 
-    /**
-     * Bóc tách danh sách tập phim.
-     */
     private List<EpisodeItem> parseEpisodes(Document document, String baseUrl) {
         Elements epElements = document.select("a[href*=/tap-]");
         List<EpisodeItem> result = new ArrayList<>();
@@ -125,7 +117,6 @@ public class VieflixParser implements MovieParser {
             if (seenHrefs.contains(href)) continue;
             seenHrefs.add(href);
 
-            // Trích xuất số tập từ URL (vd: /tap-1 -> 1)
             Integer epNum = RegexHelper.parseInt(href, "/tap-([0-9]+)");
             int finalEpNum = (epNum != null) ? epNum : (index + 1);
 

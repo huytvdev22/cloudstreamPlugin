@@ -1,8 +1,8 @@
-package com.vieflix.core;
+package com.cloudstream.core.parser;
 
-import com.vieflix.model.MovieDetail;
-import com.vieflix.model.MovieItem;
-import com.vieflix.model.VideoLink;
+import com.cloudstream.core.model.MovieDetail;
+import com.cloudstream.core.model.MovieItem;
+import com.cloudstream.core.model.VideoLink;
 
 import java.util.List;
 
@@ -14,29 +14,29 @@ import java.util.List;
 public interface MovieParser {
 
     /**
-     * Bóc tách danh sách phim từ HTML (Trang chủ, Tìm kiếm, Thể loại).
+     * Bóc tách danh sách phim từ HTML/JSON (Trang chủ, Tìm kiếm, Thể loại).
      *
-     * @param html    Nội dung HTML của trang
+     * @param content Nội dung HTML hoặc JSON của trang
      * @param baseUrl URL gốc để chuẩn hóa đường dẫn tương đối
      * @return Danh sách MovieItem
      */
-    List<MovieItem> parseMovieList(String html, String baseUrl);
+    List<MovieItem> parseMovieList(String content, String baseUrl);
 
     /**
      * Bóc tách thông tin chi tiết một bộ phim (tiêu đề, poster, mô tả, tập phim).
      *
-     * @param html    Nội dung HTML trang chi tiết
+     * @param content Nội dung HTML hoặc JSON trang chi tiết
      * @param baseUrl URL gốc
      * @return MovieDetail
      */
-    MovieDetail parseMovieDetail(String html, String baseUrl);
+    MovieDetail parseMovieDetail(String content, String baseUrl);
 
     /**
      * Trích xuất link phát video (M3U8 / Embed) cho một tập phim.
      *
-     * @param html       Nội dung HTML chứa dữ liệu video
+     * @param content    Nội dung HTML/JSON chứa dữ liệu video
      * @param slugOrData Định danh tập phim hoặc dữ liệu kèm theo
      * @return Danh sách VideoLink
      */
-    List<VideoLink> extractVideoLinks(String html, String slugOrData);
+    List<VideoLink> extractVideoLinks(String content, String slugOrData);
 }

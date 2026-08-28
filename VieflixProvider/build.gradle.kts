@@ -22,10 +22,10 @@ cloudstream {
 }
 
 tasks.register<Copy>("syncJavaFromTest") {
-    val sourceDir = file("${rootProject.projectDir}/JavaRunTest/src/main/java/com/vieflix")
+    val sourceDir = file("${rootProject.projectDir}/JavaRunTest/src/main/java")
     if (sourceDir.exists()) {
         from(sourceDir)
-        into(file("src/main/java/com/vieflix"))
+        into(file("src/main/java"))
     }
 }
 

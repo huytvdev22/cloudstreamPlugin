@@ -1,5 +1,9 @@
 package com.vieflix;
 
+import com.cloudstream.core.model.EpisodeItem;
+import com.cloudstream.core.model.MovieDetail;
+import com.cloudstream.core.model.MovieItem;
+import com.cloudstream.core.model.VideoLink;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.junit.jupiter.api.DisplayName;
@@ -29,13 +33,13 @@ public class VieflixLogicTest {
                 .timeout(15000)
                 .get();
 
-        List<VieflixLogic.MovieItem> movies = VieflixLogic.parseMovieList(doc.html(), BASE_URL);
+        List<MovieItem> movies = VieflixLogic.parseMovieList(doc.html(), BASE_URL);
 
         // Assertions
         assertNotNull(movies, "Danh sách phim không được null");
         assertFalse(movies.isEmpty(), "Danh sách phim không được rỗng");
 
-        VieflixLogic.MovieItem firstMovie = movies.get(0);
+        MovieItem firstMovie = movies.get(0);
         System.out.println("✅ Phim đầu tiên: " + firstMovie.title + " | Link: " + firstMovie.href);
 
         assertNotNull(firstMovie.title, "Tên phim không được null");
@@ -56,14 +60,14 @@ public class VieflixLogicTest {
                 .timeout(15000)
                 .get();
 
-        List<VieflixLogic.MovieItem> searchResults = VieflixLogic.parseMovieList(doc.html(), BASE_URL);
+        List<MovieItem> searchResults = VieflixLogic.parseMovieList(doc.html(), BASE_URL);
 
         assertNotNull(searchResults, "Kết quả tìm kiếm không được null");
         assertFalse(searchResults.isEmpty(), "Phải tìm thấy ít nhất 1 kết quả cho từ khóa: " + query);
 
         System.out.println("✅ Tìm thấy " + searchResults.size() + " kết quả cho từ khóa '" + query + "':");
         for (int i = 0; i < Math.min(3, searchResults.size()); i++) {
-            VieflixLogic.MovieItem item = searchResults.get(i);
+            MovieItem item = searchResults.get(i);
             System.out.println("   [" + (i + 1) + "] " + item.title + " -> " + item.href);
         }
     }
@@ -74,14 +78,14 @@ public class VieflixLogicTest {
         // Lấy 1 phim từ danh sách để test chi tiết
         String listUrl = BASE_URL + "/duyet-tim?sortField=year&page=1";
         Document listDoc = Jsoup.connect(listUrl).userAgent(USER_AGENT).timeout(15000).get();
-        List<VieflixLogic.MovieItem> movies = VieflixLogic.parseMovieList(listDoc.html(), BASE_URL);
+        List<MovieItem> movies = VieflixLogic.parseMovieList(listDoc.html(), BASE_URL);
         assertFalse(movies.isEmpty(), "Không lấy được danh sách phim mẫu để test detail");
 
         String movieUrl = movies.get(0).href;
         System.out.println("GET Detail: " + movieUrl);
 
         Document detailDoc = Jsoup.connect(movieUrl).userAgent(USER_AGENT).timeout(15000).get();
-        VieflixLogic.MovieDetail detail = VieflixLogic.parseMovieDetail(detailDoc.html(), BASE_URL);
+        MovieDetail detail = VieflixLogic.parseMovieDetail(detailDoc.html(), BASE_URL);
 
         // Assertions
         assertNotNull(detail, "MovieDetail không được null");
@@ -103,16 +107,16 @@ public class VieflixLogicTest {
         // Lấy trang phim
         String listUrl = BASE_URL + "/duyet-tim?sortField=year&page=1";
         Document listDoc = Jsoup.connect(listUrl).userAgent(USER_AGENT).timeout(15000).get();
-        List<VieflixLogic.MovieItem> movies = VieflixLogic.parseMovieList(listDoc.html(), BASE_URL);
+        List<MovieItem> movies = VieflixLogic.parseMovieList(listDoc.html(), BASE_URL);
         assertFalse(movies.isEmpty());
 
         String movieUrl = movies.get(0).href;
         Document detailDoc = Jsoup.connect(movieUrl).userAgent(USER_AGENT).timeout(15000).get();
-        VieflixLogic.MovieDetail detail = VieflixLogic.parseMovieDetail(detailDoc.html(), BASE_URL);
+        MovieDetail detail = VieflixLogic.parseMovieDetail(detailDoc.html(), BASE_URL);
         assertFalse(detail.episodes.isEmpty(), "Không có tập phim nào để test link");
 
         // Lấy tập đầu tiên và trích xuất slug
-        VieflixLogic.EpisodeItem firstEp = detail.episodes.get(0);
+        EpisodeItem firstEp = detail.episodes.get(0);
         String href = firstEp.href;
         int tapIdx = href.lastIndexOf("/tap-");
         String slug = (tapIdx >= 0) ? href.substring(tapIdx + 1) : "";
@@ -120,13 +124,13 @@ public class VieflixLogicTest {
 
         System.out.println("Trích xuất link cho slug: '" + slug + "' từ: " + movieUrl);
 
-        List<VieflixLogic.VideoLink> links = VieflixLogic.extractVideoLinks(detailDoc.html(), slug);
+        List<VideoLink> links = VieflixLogic.extractVideoLinks(detailDoc.html(), slug);
 
         // Assertions
         assertNotNull(links, "Danh sách video link không được null");
         assertFalse(links.isEmpty(), "Phải trích xuất được ít nhất 1 link video");
 
-        for (VieflixLogic.VideoLink link : links) {
+        for (VideoLink link : links) {
             System.out.println("🎬 [STREAM LINK] " + link.label + " (" + link.type + "): " + link.url);
             assertNotNull(link.url, "URL link video không được null");
             assertNotNull(link.type, "Loại link không được null");

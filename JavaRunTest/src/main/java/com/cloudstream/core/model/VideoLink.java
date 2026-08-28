@@ -1,7 +1,8 @@
-package com.vieflix.model;
+package com.cloudstream.core.model;
 
 /**
  * Đại diện cho một link video stream (M3U8 hoặc Embed).
+ * Dùng chung cho tất cả các Provider.
  */
 public class VideoLink {
     public static final String TYPE_M3U8 = "M3U8";

@@ -1,7 +1,8 @@
-package com.vieflix.model;
+package com.cloudstream.core.model;
 
 /**
  * Đại diện cho một tập phim.
+ * Dùng chung cho tất cả các Provider.
  */
 public class EpisodeItem {
     public final String href;
