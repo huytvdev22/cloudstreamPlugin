@@ -39,7 +39,7 @@ public class VieflixLogicTest {
         System.out.println("✅ Phim đầu tiên: " + firstMovie.title + " | Link: " + firstMovie.href);
 
         assertNotNull(firstMovie.title, "Tên phim không được null");
-        assertFalse(firstMovie.title.isBlank(), "Tên phim không được rỗng");
+        assertFalse(firstMovie.title.trim().isEmpty(), "Tên phim không được rỗng");
         assertNotNull(firstMovie.href, "Href không được null");
         assertTrue(firstMovie.href.startsWith("http"), "Href phải là URL tuyệt đối");
     }
@@ -86,7 +86,7 @@ public class VieflixLogicTest {
         // Assertions
         assertNotNull(detail, "MovieDetail không được null");
         assertNotNull(detail.title, "Tên phim không được null");
-        assertFalse(detail.title.isBlank(), "Tên phim không được rỗng");
+        assertFalse(detail.title.trim().isEmpty(), "Tên phim không được rỗng");
         assertNotNull(detail.episodes, "Danh sách tập phim không được null");
         assertFalse(detail.episodes.isEmpty(), "Phim phải có ít nhất 1 tập");
 

@@ -107,7 +107,7 @@ public class VieflixLogic {
             String title = "";
             if (img != null) title = img.attr("alt");
             if (title.isEmpty()) title = element.text();
-            if (title.isBlank()) continue;
+            if (title.trim().isEmpty()) continue;
 
             // Fix href tuong doi -> tuyet doi
             String href = element.attr("abs:href");
@@ -135,7 +135,7 @@ public class VieflixLogic {
 
         // --- Title ---
         Element h1 = document.selectFirst("h1");
-        String title = (h1 != null && !h1.text().isBlank()) ? h1.text() : "Khong co ten";
+        String title = (h1 != null && !h1.text().trim().isEmpty()) ? h1.text() : "Khong co ten";
 
         // --- Poster ---
         Element posterEl = document.selectFirst("img[src*=/movies/]");
@@ -253,7 +253,7 @@ public class VieflixLogic {
                 int endM3Idx = block.indexOf(closingQuote, valueStart);
                 if (endM3Idx != -1) {
                     String m3u8Url = block.substring(valueStart, endM3Idx);
-                    if (!m3u8Url.isBlank() && m3u8Url.contains(".m3u8")) {
+                    if (!m3u8Url.trim().isEmpty() && m3u8Url.contains(".m3u8")) {
                         result.add(new VideoLink(VideoLink.TYPE_M3U8, m3u8Url, "Vieflix M3U8"));
                     }
                 }
@@ -266,7 +266,7 @@ public class VieflixLogic {
                 int endEmIdx = block.indexOf(closingQuote, embedValueStart);
                 if (endEmIdx != -1) {
                     String embedUrl = block.substring(embedValueStart, endEmIdx);
-                    if (!embedUrl.isBlank()) {
+                    if (!embedUrl.trim().isEmpty()) {
                         if (embedUrl.contains("url=") && embedUrl.contains(".m3u8")) {
                             String m3u8 = embedUrl.substring(embedUrl.indexOf("url=") + 4);
                             int ampIdx = m3u8.indexOf('&');
@@ -290,7 +290,7 @@ public class VieflixLogic {
                 int endFbIdx = html.indexOf(closingQuote, fbValueStart);
                 if (endFbIdx != -1) {
                     String fbM3u8 = html.substring(fbValueStart, endFbIdx);
-                    if (!fbM3u8.isBlank() && fbM3u8.contains(".m3u8")) {
+                    if (!fbM3u8.trim().isEmpty() && fbM3u8.contains(".m3u8")) {
                         result.add(new VideoLink(VideoLink.TYPE_M3U8, fbM3u8, "Vieflix Auto"));
                     }
                 }
