@@ -94,7 +94,10 @@ subprojects {
         val javaCompileTask = tasks.matching { it.name == "compileDebugJavaWithJavac" }
         dependsOn(javaCompileTask)
         (this as CompileDexTask).input.from(
-            javaCompileTask.map { (it as JavaCompile).destinationDirectory }
+            project.provider {
+                javaCompileTask.map { (it as JavaCompile).destinationDirectory.asFile.get() }
+                    .filter { it.exists() }
+            }
         )
     }
 }
