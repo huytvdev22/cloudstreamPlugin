@@ -111,21 +111,19 @@ class VieflixProvider : MainAPI() {
         fetchDynamicMainPage(domain)
 
         val rawPath = request.data
-        val pathWithSlash = if (rawPath.startsWith("/")) rawPath else "/$rawPath"
-        val connector = if (pathWithSlash.contains("?")) "&" else "?"
-
-        val url = if (rawPath.startsWith("http")) {
-            if (rawPath.endsWith("page=") || rawPath.endsWith("&page=") || rawPath.endsWith("?page=")) {
-                "${rawPath}$page"
-            } else {
-                "${rawPath}${connector}page=$page"
-            }
+        val cleanPath = if (rawPath.startsWith("http")) {
+            rawPath
         } else {
-            if (pathWithSlash.endsWith("page=") || pathWithSlash.endsWith("&page=") || pathWithSlash.endsWith("?page=")) {
-                "$domain$pathWithSlash$page"
-            } else {
-                "$domain$pathWithSlash${connector}page=$page"
-            }
+            val p = if (rawPath.startsWith("/")) rawPath else "/$rawPath"
+            "$domain$p"
+        }
+
+        // Xây dựng URL phân trang chính xác (?page= hoặc &page=, tự động thay thế nếu đã có page=)
+        val url = if (cleanPath.contains("page=")) {
+            cleanPath.replace(Regex("([?&])page=[0-9]*"), "$1page=$page")
+        } else {
+            val connector = if (cleanPath.contains("?")) "&" else "?"
+            "$cleanPath${connector}page=$page"
         }
 
         val html = app.get(url).text
