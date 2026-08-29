@@ -1,6 +1,7 @@
 package com.vieflix;
 
 import com.cloudstream.core.model.EpisodeItem;
+import com.cloudstream.core.model.MainPageSection;
 import com.cloudstream.core.model.MovieDetail;
 import com.cloudstream.core.model.MovieItem;
 import com.cloudstream.core.model.VideoLink;
@@ -83,6 +84,70 @@ public class VieflixParser implements MovieParser {
             cleaned = cleaned.substring(0, cleaned.length() - 1);
         }
         return cleaned;
+    }
+
+    // ==========================================
+    // 0.1. PARSE DANH MỤC TRANG CHỦ (MAIN PAGE SECTIONS)
+    // ==========================================
+
+    /**
+     * Bóc tách các mục (sections/categories) động từ HTML trang chủ.
+     * Tìm tất cả các tiêu đề thẻ <h2> và thẻ <a> chuyển hướng tương ứng (ví dụ: "Xem toàn bộ").
+     *
+     * @param html Nội dung HTML của trang chủ
+     * @return Danh sách MainPageSection (tên mục và đường dẫn path)
+     */
+    public List<MainPageSection> parseMainPage(String html) {
+        List<MainPageSection> result = new ArrayList<>();
+        if (html == null || html.trim().isEmpty()) {
+            return result;
+        }
+
+        Document document = Jsoup.parse(html);
+        Elements h2Elements = document.select("h2");
+        List<String> seenPaths = new ArrayList<>();
+
+        for (Element h2 : h2Elements) {
+            String title = h2.text().trim();
+            if (title.isEmpty()) continue;
+
+            Element parent = h2.parent();
+            if (parent == null) continue;
+
+            // Tìm liên kết "Xem toàn bộ" hoặc liên kết chuyển hướng của mục trong div header
+            Element linkEl = parent.selectFirst("a[href]");
+            if (linkEl == null && parent.parent() != null) {
+                linkEl = parent.parent().selectFirst("a[href]");
+            }
+
+            if (linkEl == null) continue;
+
+            String href = linkEl.attr("href").trim();
+            if (href.isEmpty() || href.startsWith("/phim/") || href.contains("javascript:")) continue;
+
+            // Xử lý nếu href là URL tuyệt đối
+            if (href.startsWith("http://") || href.startsWith("https://")) {
+                try {
+                    java.net.URI uri = new java.net.URI(href);
+                    String path = uri.getRawPath();
+                    String query = uri.getRawQuery();
+                    href = (path != null ? path : "") + (query != null ? "?" + query : "");
+                } catch (Exception ignored) {
+                }
+            }
+
+            // Chuẩn hóa đường dẫn tương đối (đảm bảo bắt đầu bằng '/')
+            if (!href.startsWith("/")) {
+                href = "/" + href;
+            }
+
+            if (!seenPaths.contains(href)) {
+                seenPaths.add(href);
+                result.add(new MainPageSection(title, href));
+            }
+        }
+
+        return result;
     }
 
     // ==========================================

@@ -27,6 +27,7 @@ class VieflixProvider : MainAPI() {
         const val PORTAL_URL = VieflixLogic.PORTAL_URL
         const val CONSTAN_JS_URL = "${VieflixLogic.PORTAL_URL}/constan.js"
         private var cachedDomain: String? = null
+        private var cachedMainPage: List<MainPageData>? = null
     }
 
     /**
@@ -65,13 +66,41 @@ class VieflixProvider : MainAPI() {
     // ==========================================
     // 1. CẤU HÌNH MỤC TRANG CHỦ
     // ==========================================
-    override val mainPage = mainPageOf(
-        "/duyet-tim?sortField=year&page=" to "Phim Mới",
-        "/loai-phim/phim-bo?page=" to "Phim Bộ",
-        "/loai-phim/phim-le?page=" to "Phim Lẻ",
-        "/loai-phim/tv-shows?page=" to "TV Shows",
-        "/chu-de/hoat-hinh?page=" to "Hoạt Hình"
+
+    // Danh sach muc mac dinh (du phong khi chua fetch duoc HTML trang chu)
+    private val defaultMainPage: List<MainPageData> = listOf(
+        MainPageData("/duyet-tim", "Phim Mới Cập Nhật"),
+        MainPageData("/duyet-tim?isChieuRap=true&sortField=year", "Phim Chiếu Rạp Mới Nhất"),
+        MainPageData("/song-ngu", "Phim Song Ngữ Hot"),
+        MainPageData("/phim-ngan", "Shorts Drama"),
+        MainPageData("/quoc-gia/han-quoc?sortField=year", "Phim Hàn Quốc Mới Nhất"),
+        MainPageData("/the-loai/co-trang?sortField=year", "Phim Cổ Trang Huyền Ảo"),
+        MainPageData("/loai-phim/phim-le?sortField=year", "Phim Lẻ Mới Nhất"),
+        MainPageData("/loai-phim/phim-bo?sortField=year", "Phim Bộ Mới Nhất"),
+        MainPageData("/duyet-tim?lang=thuyet-minh&sortField=year", "Phim Thuyết Minh Mới Nhất"),
+        MainPageData("/duyet-tim?lang=long-tieng&sortField=year", "Phim Lồng Tiếng Mới Nhất"),
+        MainPageData("/loai-phim/tv-shows?sortField=year", "Chương Trình Truyền Hình Thực Tế"),
+        MainPageData("/loai-phim?typeList=hoat-hinh&country=trung-quoc", "Phim Hoạt Hình Trung Quốc"),
+        MainPageData("/loai-phim?typeList=hoat-hinh&country=nhat-ban", "Phim Anime Nhật Bản")
     )
+
+    override val mainPage: List<MainPageData>
+        get() = cachedMainPage ?: defaultMainPage
+
+    /**
+     * Tu dong lay danh sach muc trang chu dong tu HTML trang chu
+     */
+    private suspend fun fetchDynamicMainPage(domain: String) {
+        if (cachedMainPage != null) return
+        try {
+            val html = app.get(domain, timeout = 5).text
+            val sections = VieflixLogic.parseMainPage(html)
+            if (sections.isNotEmpty()) {
+                cachedMainPage = sections.map { MainPageData(it.path, it.name) }
+            }
+        } catch (_: Exception) {
+        }
+    }
 
     /**
      * Lay danh sach phim cho trang chu theo tung muc.
@@ -79,8 +108,26 @@ class VieflixProvider : MainAPI() {
      */
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val domain = getDomain()
-        val path = if (request.data.startsWith("/")) request.data else "/${request.data}"
-        val url = if (request.data.startsWith("http")) "${request.data}$page" else "$domain$path$page"
+        fetchDynamicMainPage(domain)
+
+        val rawPath = request.data
+        val pathWithSlash = if (rawPath.startsWith("/")) rawPath else "/$rawPath"
+        val connector = if (pathWithSlash.contains("?")) "&" else "?"
+
+        val url = if (rawPath.startsWith("http")) {
+            if (rawPath.endsWith("page=") || rawPath.endsWith("&page=") || rawPath.endsWith("?page=")) {
+                "${rawPath}$page"
+            } else {
+                "${rawPath}${connector}page=$page"
+            }
+        } else {
+            if (pathWithSlash.endsWith("page=") || pathWithSlash.endsWith("&page=") || pathWithSlash.endsWith("?page=")) {
+                "$domain$pathWithSlash$page"
+            } else {
+                "$domain$pathWithSlash${connector}page=$page"
+            }
+        }
+
         val html = app.get(url).text
 
         // Delegate: giao toan bo logic parse cho VieflixLogic (Java)

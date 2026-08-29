@@ -1,6 +1,7 @@
 package com.vieflix;
 
 import com.cloudstream.core.model.EpisodeItem;
+import com.cloudstream.core.model.MainPageSection;
 import com.cloudstream.core.model.MovieDetail;
 import com.cloudstream.core.model.MovieItem;
 import com.cloudstream.core.model.VideoLink;
@@ -16,6 +17,12 @@ public class VieflixLogic {
     // ==========================================
     // BACKWARD COMPATIBILITY TYPE ALIASES
     // ==========================================
+    public static class MainPageSection extends com.cloudstream.core.model.MainPageSection {
+        public MainPageSection(String name, String path) {
+            super(name, path);
+        }
+    }
+
     public static class MovieItem extends com.cloudstream.core.model.MovieItem {
         public MovieItem(String title, String href, String posterUrl) {
             super(title, href, posterUrl);
@@ -50,6 +57,10 @@ public class VieflixLogic {
 
     public static String parseDomain(String html) {
         return VieflixParser.getInstance().parseDomain(html);
+    }
+
+    public static List<com.cloudstream.core.model.MainPageSection> parseMainPage(String html) {
+        return VieflixParser.getInstance().parseMainPage(html);
     }
 
     public static List<com.cloudstream.core.model.MovieItem> parseMovieList(String html, String baseUrl) {
