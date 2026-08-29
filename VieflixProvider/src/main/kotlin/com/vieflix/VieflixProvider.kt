@@ -137,7 +137,7 @@ class VieflixProvider : MainAPI() {
             }
         }
 
-        return newHomePageResponse(request.name, items)
+        return newHomePageResponse(request.name, items, hasNext = items.isNotEmpty())
     }
 
     // ==========================================
