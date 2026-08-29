@@ -19,7 +19,7 @@ fun getBuildDate(): String {
 }
 
 // Build configuration for Vieflix Plugin
-version = 1
+version = 2
 
 cloudstream {
     description = "Xem phim chất lượng cao từ nguồn Vieflix (Phiên bản: 1.0.0 - Build: ${getGitHash()} - Ngày: ${getBuildDate()})"
