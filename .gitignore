@@ -12,3 +12,4 @@ local.properties
 .vscode
 target/
 **/target/
+*Provider/src/main/java/
