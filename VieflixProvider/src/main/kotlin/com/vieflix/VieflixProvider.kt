@@ -137,12 +137,7 @@ class VieflixProvider : MainAPI() {
             }
         }
 
-        return newHomePageResponse(
-            name = request.name,
-            list = items,
-            isHorizontalImages = request.isHorizontalImages,
-            hasNext = items.isNotEmpty()
-        )
+        return newHomePageResponse(request, items, hasNext = items.isNotEmpty())
     }
 
     // ==========================================
