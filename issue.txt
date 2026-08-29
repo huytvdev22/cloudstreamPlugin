@@ -1,0 +1,85 @@
+hiện tại khi mở dev tool và vào link 
+thì nó điều hướng sang trang: https://theajack.github.io/disable-devtool/404.html?h=vieflix.top
+
+--> cách xử lý: 
+
+Listed directory disable-devtool
+Viewed README.md:1-385
+Listed directory src
+Viewed main.ts:1-54
+Viewed index.ts:1-3
+Viewed script-use.ts:1-59
+Viewed package.json:1-65
+Listed directory build
+Viewed rollup.config.js:1-62
+Viewed index.ts:1-41
+Viewed config.ts:1-59
+Viewed close-window.ts:1-39
+Ran command: `wsl bash -ic "node -v"`
+
+Chào bạn, dựa vào việc phân tích mã nguồn của repository `disable-devtool`, mình đã tìm ra nguyên nhân và cách giải quyết cho vấn đề bạn đang gặp phải.
+
+### 🔍 Phân tích nguyên lý hoạt động của `disable-devtool`
+Thư viện này có chứa nhiều cơ chế "sub-detector" (kiểm tra khoảng cách màn hình, dùng debugger, ép regex to string, đo performance log...) để phát hiện khi người dùng mở Developer Tools (F12). 
+Khi bạn mở DevTools trên trang `vieflix.top`, hàm callback `ondevtoolopen` sẽ ngay lập tức được kích hoạt. Mặc định của thư viện là gọi hàm `closeWindow()` (được định nghĩa trong [`src/utils/close-window.ts`](file:///d:/2.projects/training/disable-devtool/src/utils/close-window.ts#L12-L38)). Hàm này sẽ thực thi đoạn code sau:
+```javascript
+window.location.href = config.timeOutUrl || `https://theajack.github.io/disable-devtool/404.html?h=${encodeURIComponent(location.host)}`;
+```
+Đó chính xác là lý do tại sao trình duyệt của bạn bị ép chuyển hướng đến đường link `404.html?h=vieflix.top`.
+
+---
+
+### 🛡️ Các cách Bypass để bạn có thể inspect và làm extension Cloudstream
+
+Vì bạn không thể can thiệp trực tiếp vào mã nguồn của trang web, đây là **4 cách hiệu quả nhất** để bypass từ phía Client:
+
+#### Cách 1: Sử dụng Request Blocking của Chrome DevTools (Khuyên dùng & Dễ nhất)
+Cách này giúp bạn chặn việc tải cái script chứa mã `disable-devtool` về trình duyệt.
+1. Mở một tab mới (trắng) bằng địa chỉ `about:blank`.
+2. Bấm **F12** để mở sẵn DevTools.
+3. Chuyển sang tab **Network**, bật tùy chọn **Disable cache**.
+4. Nhập URL `https://vieflix.top` vào thanh địa chỉ và ấn Enter. Trang sẽ bị chuyển hướng sang 404 (đừng lo).
+5. Trong bảng danh sách tải mạng của tab Network, hãy tìm file JavaScript khả nghi (có thể tên là `disable-devtool.min.js`, hoặc tìm tên miền `cdn.jsdelivr.net/unpkg.com`, nếu họ nhúng cục bộ thì tìm file `app.js` / `main.js` tải cuối cùng).
+6. Click chuột phải vào request của file js đó $\rightarrow$ Chọn **Block request URL** (Chặn URL yêu cầu).
+7. Gõ lại URL `https://vieflix.top` để load lại trang. Vì script chặn đã bị block, bạn có thể tự do xem tab Elements hoặc theo dõi API Network thoải mái.
+
+#### Cách 2: Dùng Tiện ích mở rộng uBlock Origin
+Nếu bạn có sử dụng uBlock Origin hoặc các trình chặn quảng cáo, bạn có thể thiết lập rules để block hẳn thư viện này:
+1. Mở Cài đặt của uBlock Origin $\rightarrow$ tab **My filters** (Bộ lọc của tôi).
+2. Thêm 2 dòng sau vào để chặn thư viện nếu trang web load thông qua CDN:
+   ```text
+   ||cdn.jsdelivr.net/npm/disable-devtool^
+   ||unpkg.com/disable-devtool^
+   ```
+3. Nhấn **Apply changes**. Sau đó reload lại trang web là xong. *(Nếu trang web tự host file thư viện đó trên server của họ, bạn cần tìm URL cụ thể của file JS đó để bỏ vào My filters)*.
+
+#### Cách 3: Chặn thực thi JavaScript (Dùng cho check DOM tĩnh)
+Nếu mục đích của bạn chỉ là xem cấu trúc HTML tĩnh của web để viết Regex / Jsoup parse DOM cho Cloudstream mà không cần quan tâm đến các API Fetch/XHR ngầm:
+1. Truy cập trang `vieflix.top`.
+2. Bấm vào **biểu tượng ổ khóa** (Site information) trên thanh địa chỉ URL.
+3. Chọn **Site settings** (Cài đặt trang web) $\rightarrow$ Tìm mục **JavaScript** $\rightarrow$ Đổi thành **Block** (Chặn).
+4. F5 tải lại trang. Lúc này trang web sẽ không chạy được bất kì mã JS nào, do đó thư viện `disable-devtool` cũng bị vô hiệu hóa hoàn toàn, bạn cứ mở F12 bình thường.
+
+#### Cách 4: Tiêm mã chặn (Sử dụng Tampermonkey)
+Bạn có thể dùng extension Tampermonkey để ghi đè hàm cài đặt của thư viện này ngay từ khi trang web bắt đầu load (`document-start`):
+```javascript
+// ==UserScript==
+// @name         Bypass Disable Devtool
+// @namespace    http://tampermonkey.net/
+// @version      0.1
+// @description  Bypass disable-devtool on Vieflix
+// @match        *://vieflix.top/*
+// @run-at       document-start
+// @grant        none
+// ==/UserScript==
+
+(function() {
+    'use strict';
+    // Ghi đè hàm mặc định
+    window.DisableDevtool = function() { return { success: true }; };
+    window.DisableDevtool.isSuspend = true;
+    window.DisableDevtool.isRunning = true;
+})();
+```
+
+Bạn hãy thử **Cách 1** hoặc **Cách 2** trước nhé vì nó rất phù hợp để có thể theo dõi trực tiếp các Network API Call lấy link stream của phim! Cần hỗ trợ thêm cứ báo lại mình.

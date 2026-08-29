@@ -71,6 +71,7 @@ subprojects {
     dependencies {
         val cloudstream by configurations
         val implementation by configurations
+        val testImplementation by configurations
 
         // Stubs for all cloudstream classes
         cloudstream("com.lagradost:cloudstream3:pre-release")
@@ -84,6 +85,8 @@ subprojects {
         // IMPORTANT: Do not bump Jackson above 2.13.1, as newer versions will
         // break compatibility on older Android devices.
         implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.13.1") // JSON Parser
+
+        testImplementation("junit:junit:4.13.2")
     }
 }
 
