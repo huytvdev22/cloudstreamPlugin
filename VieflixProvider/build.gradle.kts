@@ -29,7 +29,8 @@ tasks.register<Copy>("syncJavaFromTest") {
     }
 }
 
-tasks.named("preBuild") {
+tasks.matching { it.name.startsWith("compile") || it.name == "preBuild" }.configureEach {
     dependsOn("syncJavaFromTest")
 }
+
 

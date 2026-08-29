@@ -1,5 +1,6 @@
 import com.android.build.gradle.BaseExtension
 import com.lagradost.cloudstream3.gradle.CloudstreamExtension
+import com.lagradost.cloudstream3.gradle.tasks.CompileDexTask
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
 
@@ -87,6 +88,14 @@ subprojects {
         implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.13.1") // JSON Parser
 
         testImplementation("junit:junit:4.13.2")
+    }
+
+    tasks.matching { it.name == "compileDex" }.configureEach {
+        val javaCompileTask = tasks.matching { it.name == "compileDebugJavaWithJavac" }
+        dependsOn(javaCompileTask)
+        (this as CompileDexTask).input.from(
+            javaCompileTask.map { (it as JavaCompile).destinationDirectory }
+        )
     }
 }
 
