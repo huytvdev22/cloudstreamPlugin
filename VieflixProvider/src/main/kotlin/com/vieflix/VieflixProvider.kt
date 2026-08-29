@@ -68,20 +68,20 @@ class VieflixProvider : MainAPI() {
     // ==========================================
 
     // Danh sach muc mac dinh (du phong khi chua fetch duoc HTML trang chu)
-    private val defaultMainPage: List<MainPageData> = listOf(
-        MainPageData("/duyet-tim", "Phim Mới Cập Nhật"),
-        MainPageData("/duyet-tim?isChieuRap=true&sortField=year", "Phim Chiếu Rạp Mới Nhất"),
-        MainPageData("/song-ngu", "Phim Song Ngữ Hot"),
-        MainPageData("/phim-ngan", "Shorts Drama"),
-        MainPageData("/quoc-gia/han-quoc?sortField=year", "Phim Hàn Quốc Mới Nhất"),
-        MainPageData("/the-loai/co-trang?sortField=year", "Phim Cổ Trang Huyền Ảo"),
-        MainPageData("/loai-phim/phim-le?sortField=year", "Phim Lẻ Mới Nhất"),
-        MainPageData("/loai-phim/phim-bo?sortField=year", "Phim Bộ Mới Nhất"),
-        MainPageData("/duyet-tim?lang=thuyet-minh&sortField=year", "Phim Thuyết Minh Mới Nhất"),
-        MainPageData("/duyet-tim?lang=long-tieng&sortField=year", "Phim Lồng Tiếng Mới Nhất"),
-        MainPageData("/loai-phim/tv-shows?sortField=year", "Chương Trình Truyền Hình Thực Tế"),
-        MainPageData("/loai-phim?typeList=hoat-hinh&country=trung-quoc", "Phim Hoạt Hình Trung Quốc"),
-        MainPageData("/loai-phim?typeList=hoat-hinh&country=nhat-ban", "Phim Anime Nhật Bản")
+    private val defaultMainPage: List<MainPageData> = mainPageOf(
+        "/duyet-tim" to "Phim Mới Cập Nhật",
+        "/duyet-tim?isChieuRap=true&sortField=year" to "Phim Chiếu Rạp Mới Nhất",
+        "/song-ngu" to "Phim Song Ngữ Hot",
+        "/phim-ngan" to "Shorts Drama",
+        "/quoc-gia/han-quoc?sortField=year" to "Phim Hàn Quốc Mới Nhất",
+        "/the-loai/co-trang?sortField=year" to "Phim Cổ Trang Huyền Ảo",
+        "/loai-phim/phim-le?sortField=year" to "Phim Lẻ Mới Nhất",
+        "/loai-phim/phim-bo?sortField=year" to "Phim Bộ Mới Nhất",
+        "/duyet-tim?lang=thuyet-minh&sortField=year" to "Phim Thuyết Minh Mới Nhất",
+        "/duyet-tim?lang=long-tieng&sortField=year" to "Phim Lồng Tiếng Mới Nhất",
+        "/loai-phim/tv-shows?sortField=year" to "Chương Trình Truyền Hình Thực Tế",
+        "/loai-phim?typeList=hoat-hinh&country=trung-quoc" to "Phim Hoạt Hình Trung Quốc",
+        "/loai-phim?typeList=hoat-hinh&country=nhat-ban" to "Phim Anime Nhật Bản"
     )
 
     override val mainPage: List<MainPageData>
@@ -96,7 +96,7 @@ class VieflixProvider : MainAPI() {
             val html = app.get(domain, timeout = 5).text
             val sections = VieflixLogic.parseMainPage(html)
             if (sections.isNotEmpty()) {
-                cachedMainPage = sections.map { MainPageData(it.path, it.name) }
+                cachedMainPage = sections.map { MainPageData(data = it.path, name = it.name) }
             }
         } catch (_: Exception) {
         }
