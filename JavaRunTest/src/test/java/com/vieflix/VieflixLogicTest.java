@@ -1,6 +1,7 @@
 package com.vieflix;
 
 import com.cloudstream.core.model.EpisodeItem;
+import com.cloudstream.core.model.MainPageSection;
 import com.cloudstream.core.model.MovieDetail;
 import com.cloudstream.core.model.MovieItem;
 import com.cloudstream.core.model.VideoLink;
@@ -50,6 +51,44 @@ public class VieflixLogicTest {
         String mockJs = "var SITE_CONFIG = { TARGET_DOMAIN: 'https://vieflix.top' };";
         String domainJs = VieflixLogic.parseDomain(mockJs);
         assertEquals("https://vieflix.top", domainJs);
+    }
+
+    @Test
+    @DisplayName("Test 0.1: Bóc tách danh mục trang chủ động (MainPage Sections)")
+    public void testParseMainPage() throws IOException {
+        // 1. Test với HTML mock (đoạn HTML mẫu từ người dùng)
+        String mockHtml = "<div class=\"flex items-center justify-between\">"
+                + "<h2 class=\"text-xl font-extrabold\">Phim Mới Cập Nhật</h2>"
+                + "<a href=\"/duyet-tim\"><span>Xem toàn bộ</span></a>"
+                + "</div>"
+                + "<div class=\"flex items-center justify-between\">"
+                + "<h2 class=\"text-xl font-extrabold\">Phim Chiếu Rạp Mới Nhất</h2>"
+                + "<a href=\"/duyet-tim?isChieuRap=true&amp;sortField=year\"><span>Xem toàn bộ</span></a>"
+                + "</div>";
+
+        List<MainPageSection> mockSections = VieflixLogic.parseMainPage(mockHtml);
+        assertNotNull(mockSections);
+        assertEquals(2, mockSections.size());
+        assertEquals("Phim Mới Cập Nhật", mockSections.get(0).name);
+        assertEquals("/duyet-tim", mockSections.get(0).path);
+        assertEquals("Phim Chiếu Rạp Mới Nhất", mockSections.get(1).name);
+        assertEquals("/duyet-tim?isChieuRap=true&sortField=year", mockSections.get(1).path);
+        System.out.println("✅ Mock HTML parse thành công: " + mockSections.size() + " mục.");
+
+        // 2. Test với trang chủ live
+        try {
+            Document doc = Jsoup.connect(BASE_URL).userAgent(USER_AGENT).timeout(15000).get();
+            List<MainPageSection> liveSections = VieflixLogic.parseMainPage(doc.html());
+            assertNotNull(liveSections);
+            assertFalse(liveSections.isEmpty(), "Phải bóc tách được ít nhất 1 mục trang chủ");
+
+            System.out.println("✅ Bóc tách " + liveSections.size() + " mục trang chủ live:");
+            for (MainPageSection s : liveSections) {
+                System.out.println("   [" + s.name + "] -> " + s.path);
+            }
+        } catch (Exception e) {
+            System.out.println("⚠️ Không thể kết nối trang chủ live: " + e.getMessage());
+        }
     }
 
     @Test
