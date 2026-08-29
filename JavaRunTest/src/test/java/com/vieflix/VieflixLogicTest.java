@@ -23,6 +23,36 @@ public class VieflixLogicTest {
     private final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
     @Test
+    @DisplayName("Test 0: Trích xuất tên miền động từ vieflix.com / constan.js")
+    public void testParseDomain() {
+        // 1. Test với HTML thật từ portal vieflix.com
+        try {
+            Document doc = Jsoup.connect(VieflixLogic.PORTAL_URL)
+                    .userAgent(USER_AGENT)
+                    .timeout(10000)
+                    .get();
+            String domainFromHtml = VieflixLogic.parseDomain(doc.html());
+            System.out.println("✅ Domain lấy từ vieflix.com: " + domainFromHtml);
+            assertNotNull(domainFromHtml);
+            assertTrue(domainFromHtml.startsWith("http"), "Domain phải bắt đầu bằng http/https");
+        } catch (Exception e) {
+            System.out.println("⚠️ Không kết nối được vieflix.com (có thể do mạng): " + e.getMessage());
+        }
+
+        // 2. Test với mock HTML (giả lập trường hợp link đổi sang domain mới)
+        String mockHtml = "<div class=\"input-group\">"
+                + "<a href=\"https://vieflix.top\" id=\"accessBtn\" class=\"btn-access\">Truy cập →</a>"
+                + "</div>";
+        String domainMock = VieflixLogic.parseDomain(mockHtml);
+        assertEquals("https://vieflix.top", domainMock);
+
+        // 3. Test với mock JS config
+        String mockJs = "var SITE_CONFIG = { TARGET_DOMAIN: 'https://vieflix.top' };";
+        String domainJs = VieflixLogic.parseDomain(mockJs);
+        assertEquals("https://vieflix.top", domainJs);
+    }
+
+    @Test
     @DisplayName("Test 1: Lấy danh sách phim từ trang duyệt tìm / trang chủ")
     public void testParseMovieList() throws IOException {
         String url = BASE_URL + "/duyet-tim?sortField=year&page=1";

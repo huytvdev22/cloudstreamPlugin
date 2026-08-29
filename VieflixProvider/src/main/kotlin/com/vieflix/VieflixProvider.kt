@@ -11,26 +11,66 @@ import com.lagradost.cloudstream3.utils.loadExtractor
  *
  * Class nay chi chiu trach nhiem:
  *   1. Khai bao metadata CloudStream (mainUrl, name, supportedTypes, ...)
- *   2. Goi HTTP de lay HTML
- *   3. Delegate toan bo logic parse sang [VieflixLogic] (Java)
- *   4. Chuyen ket qua tu Java bean -> kieu du lieu CloudStream
+ *   2. Tu dong kiem tra va cap nhat domain moi nhat tu vieflix.com
+ *   3. Goi HTTP de lay HTML
+ *   4. Delegate toan bo logic parse sang [VieflixLogic] (Java)
+ *   5. Chuyen ket qua tu Java bean -> kieu du lieu CloudStream
  */
 class VieflixProvider : MainAPI() {
-    override var mainUrl = "https://vieflix.top"
+    override var mainUrl = VieflixLogic.DEFAULT_BASE_URL
     override var name = "Vieflix"
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime)
     override var lang = "vi"
     override val hasMainPage = true
 
+    companion object {
+        const val PORTAL_URL = VieflixLogic.PORTAL_URL
+        const val CONSTAN_JS_URL = "${VieflixLogic.PORTAL_URL}/constan.js"
+        private var cachedDomain: String? = null
+    }
+
+    /**
+     * Tu dong kiem tra va lay domain dang hoat dong tu portal vieflix.com
+     */
+    private suspend fun getDomain(): String {
+        cachedDomain?.let { return it }
+
+        // 1. Uu tien lay tu constan.js (nhanh va chua TARGET_DOMAIN chinh xac nhat)
+        try {
+            val js = app.get(CONSTAN_JS_URL, timeout = 5).text
+            val domain = VieflixLogic.parseDomain(js)
+            if (domain.isNotEmpty() && !domain.equals(PORTAL_URL, ignoreCase = true)) {
+                cachedDomain = domain
+                mainUrl = domain
+                return domain
+            }
+        } catch (_: Exception) {
+        }
+
+        // 2. Fallback: Lay tu HTML trang chu portal vieflix.com (doc the a#accessBtn)
+        try {
+            val html = app.get(PORTAL_URL, timeout = 5).text
+            val domain = VieflixLogic.parseDomain(html)
+            if (domain.isNotEmpty() && !domain.equals(PORTAL_URL, ignoreCase = true)) {
+                cachedDomain = domain
+                mainUrl = domain
+                return domain
+            }
+        } catch (_: Exception) {
+        }
+
+        return mainUrl
+    }
+
     // ==========================================
     // 1. CẤU HÌNH MỤC TRANG CHỦ
     // ==========================================
     override val mainPage = mainPageOf(
-        "$mainUrl/duyet-tim?sortField=year&page=" to "Phim Mới",
-        "$mainUrl/loai-phim/phim-bo?page=" to "Phim Bộ",
-        "$mainUrl/loai-phim/phim-le?page=" to "Phim Lẻ",
-        "$mainUrl/loai-phim/tv-shows?page=" to "TV Shows",
-        "$mainUrl/chu-de/hoat-hinh?page=" to "Hoạt Hình"
+        "/duyet-tim?sortField=year&page=" to "Phim Mới",
+        "/loai-phim/phim-bo?page=" to "Phim Bộ",
+        "/loai-phim/phim-le?page=" to "Phim Lẻ",
+        "/loai-phim/tv-shows?page=" to "TV Shows",
+        "/chu-de/hoat-hinh?page=" to "Hoạt Hình"
     )
 
     /**
@@ -38,11 +78,13 @@ class VieflixProvider : MainAPI() {
      * HTML duoc fetch roi delegate sang VieflixLogic.parseMovieList().
      */
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val url = "${request.data}$page"
+        val domain = getDomain()
+        val path = if (request.data.startsWith("/")) request.data else "/${request.data}"
+        val url = if (request.data.startsWith("http")) "${request.data}$page" else "$domain$path$page"
         val html = app.get(url).text
 
         // Delegate: giao toan bo logic parse cho VieflixLogic (Java)
-        val items = VieflixLogic.parseMovieList(html, mainUrl).mapNotNull { item ->
+        val items = VieflixLogic.parseMovieList(html, domain).mapNotNull { item ->
             newMovieSearchResponse(item.title, item.href, TvType.Movie) {
                 this.posterUrl = item.posterUrl
             }
@@ -60,10 +102,11 @@ class VieflixProvider : MainAPI() {
      * Delegate parse HTML sang VieflixLogic.parseMovieList().
      */
     override suspend fun search(query: String): List<SearchResponse> {
-        val searchUrl = "$mainUrl/duyet-tim?search=$query"
+        val domain = getDomain()
+        val searchUrl = "$domain/duyet-tim?search=$query"
         val html = app.get(searchUrl).text
 
-        return VieflixLogic.parseMovieList(html, mainUrl).mapNotNull { item ->
+        return VieflixLogic.parseMovieList(html, domain).mapNotNull { item ->
             newMovieSearchResponse(item.title, item.href, TvType.Movie) {
                 this.posterUrl = item.posterUrl
             }
@@ -79,10 +122,20 @@ class VieflixProvider : MainAPI() {
      * Delegate parse sang VieflixLogic.parseMovieDetail().
      */
     override suspend fun load(url: String): LoadResponse {
-        val html = app.get(url).text
+        val domain = getDomain()
+        val targetUrl = if (url.startsWith("http")) {
+            val uri = java.net.URI(url)
+            val path = (uri.rawPath ?: "") + if (uri.rawQuery != null) "?${uri.rawQuery}" else ""
+            "$domain$path"
+        } else {
+            val path = if (url.startsWith("/")) url else "/$url"
+            "$domain$path"
+        }
+
+        val html = app.get(targetUrl).text
 
         // Delegate: giao toan bo logic parse cho VieflixLogic (Java)
-        val detail = VieflixLogic.parseMovieDetail(html, mainUrl)
+        val detail = VieflixLogic.parseMovieDetail(html, domain)
 
         // Chuyen EpisodeItem (Java) -> Episode (CloudStream)
         val episodesList = detail.episodes.map { ep ->
@@ -134,16 +187,24 @@ class VieflixProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
+        val domain = getDomain()
         // Lay slug cua tap (tap-full, tap-1, tap-2, ...)
         val slug = data.substringAfterLast("/").substringBefore("?")
 
         // Luon GET trang phim GOC (khong phai trang tap).
-        // Vi du: data = "https://vieflix.top/phim/ten-cau-la-gi/tap-full?sv=0&lang=0"
-        //    -> movieUrl = "https://vieflix.top/phim/ten-cau-la-gi"
-        val movieUrl = if (data.contains("/tap-")) {
+        val rawMovieUrl = if (data.contains("/tap-")) {
             data.substringBefore("/tap-")
         } else {
             data.substringBefore("?")
+        }
+
+        val movieUrl = if (rawMovieUrl.startsWith("http")) {
+            val uri = java.net.URI(rawMovieUrl)
+            val path = (uri.rawPath ?: "") + if (uri.rawQuery != null) "?${uri.rawQuery}" else ""
+            "$domain$path"
+        } else {
+            val path = if (rawMovieUrl.startsWith("/")) rawMovieUrl else "/$rawMovieUrl"
+            "$domain$path"
         }
 
         val html = app.get(movieUrl).text
@@ -160,7 +221,7 @@ class VieflixProvider : MainAPI() {
                             source = name,
                             name = link.label,
                             url = link.url,
-                            referer = mainUrl,
+                            referer = domain,
                             quality = Qualities.P1080.value,
                             type = ExtractorLinkType.M3U8
                         )
@@ -168,7 +229,7 @@ class VieflixProvider : MainAPI() {
                 }
                 VieflixLogic.VideoLink.TYPE_EMBED -> {
                     // Giao cho CloudStream tu xu ly embed (Doodstream, Streamtape, ...)
-                    loadExtractor(link.url, mainUrl, subtitleCallback, callback)
+                    loadExtractor(link.url, domain, subtitleCallback, callback)
                 }
             }
         }

@@ -20,10 +20,69 @@ import java.util.List;
  */
 public class VieflixParser implements MovieParser {
 
+    public static final String PORTAL_URL = "https://vieflix.com";
+    public static final String DEFAULT_BASE_URL = "https://vieflix.top";
+
     private static final VieflixParser INSTANCE = new VieflixParser();
 
     public static VieflixParser getInstance() {
         return INSTANCE;
+    }
+
+    // ==========================================
+    // 0. CHECK & TRÍCH XUẤT TÊN MIỀN (DOMAIN)
+    // ==========================================
+
+    /**
+     * Bóc tách tên miền mới nhất từ HTML của trang portal (vieflix.com)
+     * hoặc từ script cấu hình (constan.js).
+     *
+     * @param html Nội dung HTML hoặc JS của trang portal
+     * @return Tên miền chính xác (ví dụ: https://vieflix.top)
+     */
+    public String parseDomain(String html) {
+        if (html == null || html.trim().isEmpty()) {
+            return DEFAULT_BASE_URL;
+        }
+
+        // 1. Trích xuất TARGET_DOMAIN từ script: TARGET_DOMAIN: "https://..."
+        String targetDomain = RegexHelper.extractGroup(html, "TARGET_DOMAIN\\s*:\\s*[\"']([^\"']+)[\"']", 1);
+        if (targetDomain != null && isValidDomain(targetDomain)) {
+            return cleanDomain(targetDomain);
+        }
+
+        // 2. Parse thẻ a#accessBtn (button "Truy cập →")
+        Document document = Jsoup.parse(html);
+        Element accessBtn = document.selectFirst("#accessBtn");
+        if (accessBtn != null) {
+            String href = accessBtn.attr("href").trim();
+            if (isValidDomain(href) && !href.equalsIgnoreCase(PORTAL_URL) && !href.equalsIgnoreCase(PORTAL_URL + "/")) {
+                return cleanDomain(href);
+            }
+        }
+
+        // 3. Parse input#domainInput
+        Element domainInput = document.selectFirst("#domainInput");
+        if (domainInput != null) {
+            String val = domainInput.attr("value").trim();
+            if (isValidDomain(val) && !val.equalsIgnoreCase(PORTAL_URL) && !val.equalsIgnoreCase(PORTAL_URL + "/")) {
+                return cleanDomain(val);
+            }
+        }
+
+        return DEFAULT_BASE_URL;
+    }
+
+    private boolean isValidDomain(String url) {
+        return url != null && (url.startsWith("http://") || url.startsWith("https://"));
+    }
+
+    private String cleanDomain(String url) {
+        String cleaned = url.trim();
+        while (cleaned.endsWith("/")) {
+            cleaned = cleaned.substring(0, cleaned.length() - 1);
+        }
+        return cleaned;
     }
 
     // ==========================================

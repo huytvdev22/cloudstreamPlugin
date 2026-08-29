@@ -41,9 +41,16 @@ public class VieflixLogic {
         }
     }
 
+    public static final String PORTAL_URL = VieflixParser.PORTAL_URL;
+    public static final String DEFAULT_BASE_URL = VieflixParser.DEFAULT_BASE_URL;
+
     // ==========================================
     // STATIC DELEGATION METHODS
     // ==========================================
+
+    public static String parseDomain(String html) {
+        return VieflixParser.getInstance().parseDomain(html);
+    }
 
     public static List<com.cloudstream.core.model.MovieItem> parseMovieList(String html, String baseUrl) {
         return VieflixParser.getInstance().parseMovieList(html, baseUrl);
