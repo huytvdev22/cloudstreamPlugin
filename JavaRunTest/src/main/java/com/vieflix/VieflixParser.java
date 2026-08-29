@@ -94,16 +94,20 @@ public class VieflixParser implements MovieParser {
      * Bóc tách các mục (sections/categories) động từ HTML trang chủ.
      * Tìm tất cả các tiêu đề thẻ <h2> và thẻ <a> chuyển hướng tương ứng (ví dụ: "Xem toàn bộ").
      *
-     * @param html Nội dung HTML của trang chủ
+     * @param html    Nội dung HTML của trang chủ
+     * @param baseUrl URL gốc
      * @return Danh sách MainPageSection (tên mục và đường dẫn path)
      */
-    public List<MainPageSection> parseMainPage(String html) {
+    @Override
+    public List<MainPageSection> parseMainPage(String html, String baseUrl) {
         List<MainPageSection> result = new ArrayList<>();
         if (html == null || html.trim().isEmpty()) {
             return result;
         }
 
-        Document document = Jsoup.parse(html);
+        Document document = (baseUrl != null && !baseUrl.isEmpty())
+                ? Jsoup.parse(html, baseUrl)
+                : Jsoup.parse(html);
         Elements h2Elements = document.select("h2");
         List<String> seenPaths = new ArrayList<>();
 
@@ -148,6 +152,10 @@ public class VieflixParser implements MovieParser {
         }
 
         return result;
+    }
+
+    public List<MainPageSection> parseMainPage(String html) {
+        return parseMainPage(html, DEFAULT_BASE_URL);
     }
 
     // ==========================================

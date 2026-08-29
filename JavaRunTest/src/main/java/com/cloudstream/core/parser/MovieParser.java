@@ -1,9 +1,11 @@
 package com.cloudstream.core.parser;
 
+import com.cloudstream.core.model.MainPageSection;
 import com.cloudstream.core.model.MovieDetail;
 import com.cloudstream.core.model.MovieItem;
 import com.cloudstream.core.model.VideoLink;
 
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -12,6 +14,17 @@ import java.util.List;
  * đều triển khai interface này để thống nhất luồng xử lý.
  */
 public interface MovieParser {
+
+    /**
+     * Bóc tách danh sách các mục/danh mục hiển thị trên trang chủ (MainPage Sections).
+     *
+     * @param content Nội dung HTML hoặc JSON của trang chủ
+     * @param baseUrl URL gốc để chuẩn hóa đường dẫn tương đối
+     * @return Danh sách MainPageSection (tên mục và đường dẫn)
+     */
+    default List<MainPageSection> parseMainPage(String content, String baseUrl) {
+        return Collections.emptyList();
+    }
 
     /**
      * Bóc tách danh sách phim từ HTML/JSON (Trang chủ, Tìm kiếm, Thể loại).

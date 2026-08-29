@@ -63,6 +63,10 @@ public class VieflixLogic {
         return VieflixParser.getInstance().parseMainPage(html);
     }
 
+    public static List<com.cloudstream.core.model.MainPageSection> parseMainPage(String html, String baseUrl) {
+        return VieflixParser.getInstance().parseMainPage(html, baseUrl);
+    }
+
     public static List<com.cloudstream.core.model.MovieItem> parseMovieList(String html, String baseUrl) {
         return VieflixParser.getInstance().parseMovieList(html, baseUrl);
     }
