@@ -78,4 +78,8 @@ public class VieflixLogic {
     public static List<com.cloudstream.core.model.VideoLink> extractVideoLinks(String html, String slug) {
         return VieflixParser.getInstance().extractVideoLinks(html, slug);
     }
+
+    public static String buildSearchUrl(String baseUrl, String query, int page) {
+        return VieflixParser.getInstance().buildSearchUrl(baseUrl, query, page);
+    }
 }

@@ -67,19 +67,23 @@ class VieflixProvider : MainAPI() {
     // ==========================================
 
     override val mainPage: List<MainPageData> = mainPageOf(
-        "/duyet-tim" to "Phim Mới Cập Nhật",
-        "/duyet-tim?isChieuRap=true&sortField=year" to "Phim Chiếu Rạp Mới Nhất",
-        "/song-ngu" to "Phim Song Ngữ Hot",
-        "/phim-ngan" to "Shorts Drama",
-        "/quoc-gia/han-quoc?sortField=year" to "Phim Hàn Quốc Mới Nhất",
-        "/the-loai/co-trang?sortField=year" to "Phim Cổ Trang Huyền Ảo",
-        "/loai-phim/phim-le?sortField=year" to "Phim Lẻ Mới Nhất",
-        "/loai-phim/phim-bo?sortField=year" to "Phim Bộ Mới Nhất",
-        "/duyet-tim?lang=thuyet-minh&sortField=year" to "Phim Thuyết Minh Mới Nhất",
-        "/duyet-tim?lang=long-tieng&sortField=year" to "Phim Lồng Tiếng Mới Nhất",
-        "/loai-phim/tv-shows?sortField=year" to "Chương Trình Truyền Hình Thực Tế",
-        "/loai-phim?typeList=hoat-hinh&country=trung-quoc" to "Phim Hoạt Hình Trung Quốc",
-        "/loai-phim?typeList=hoat-hinh&country=nhat-ban" to "Phim Anime Nhật Bản"
+        "/duyet-tim?isChieuRap=true&sortField=year" to "🍿 Phim Chiếu Rạp Mới Nhất",
+        "/duyet-tim?sortField=modified" to "🔥 Phim Mới Cập Nhật",
+        "/duyet-tim?lang=thuyet-minh&sortField=year" to "🎙️ Phim Thuyết Minh Mới Nhất",
+        "/duyet-tim?lang=long-tieng&sortField=year" to "🗣️ Phim Lồng Tiếng Mới Nhất",
+        "/song-ngu" to "🌐 Phim Song Ngữ Hot",
+        "/loai-phim/phim-le?sortField=year" to "🎬 Phim Lẻ Mới Nhất",
+        "/loai-phim/phim-bo?sortField=year" to "📺 Phim Bộ Mới Nhất",
+        "/duyet-tim?category=co-trang&country=trung-quoc&sortField=year" to "🎎 Phim Cổ Trang Trung Quốc",
+        "/quoc-gia/han-quoc?sortField=year" to "🌸 Phim Hàn Quốc Mới Nhất",
+        "/duyet-tim?category=hanh-dong&country=au-my&sortField=year" to "💥 Phim Hành Động Âu Mỹ",
+        "/duyet-tim?category=kinh-di&sortField=year" to "👻 Phim Kinh Dị & Giật Gân",
+        "/duyet-tim?category=tinh-cam&sortField=year" to "💖 Phim Tình Cảm & Lãng Mạn",
+        "/duyet-tim?category=hai-huoc&sortField=year" to "🤣 Phim Hài Hước Giải Trí",
+        "/duyet-tim?typeList=hoat-hinh&country=nhat-ban&sortField=year" to "⛩️ Anime Nhật Bản Hot",
+        "/duyet-tim?typeList=hoat-hinh&country=trung-quoc&sortField=year" to "🐉 Hoạt Hình 3D Trung Quốc",
+        "/phim-ngan" to "📱 Shorts Drama",
+        "/loai-phim/tv-shows?sortField=year" to "🎤 TV Shows & Truyền Hình"
     )
 
     /**
@@ -119,16 +123,16 @@ class VieflixProvider : MainAPI() {
     }
 
     // ==========================================
-    // 2. TIM KIEM
+    // 2. TIM KIEM THONG MINH (SMART FILTER SEARCH)
     // ==========================================
 
     /**
-     * Tim kiem phim theo tu khoa co ho tro phan trang.
-     * Delegate parse HTML sang VieflixLogic.parseMovieList().
+     * Tim kiem phim theo tu khoa hoac bo loc thong minh co ho tro phan trang.
+     * Delegate parse query sang VieflixLogic.buildSearchUrl().
      */
     override suspend fun search(query: String, page: Int): SearchResponseList {
         val domain = getDomain()
-        val searchUrl = "$domain/duyet-tim?search=$query&page=$page"
+        val searchUrl = VieflixLogic.buildSearchUrl(domain, query, page)
         val html = app.get(searchUrl).text
 
         val items = VieflixLogic.parseMovieList(html, domain).mapNotNull { item ->

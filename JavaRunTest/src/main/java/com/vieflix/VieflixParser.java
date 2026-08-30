@@ -322,4 +322,191 @@ public class VieflixParser implements MovieParser {
 
         return result;
     }
+
+    // ==========================================
+    // 5. SMART FILTER SEARCH BUILDER
+    // ==========================================
+
+    /**
+     * Xây dựng URL tìm kiếm thông minh từ từ khóa hoặc các tag/bộ lọc.
+     * Hỗ trợ tìm kiếm từ khóa kết hợp các bộ lọc:
+     * - Phim chiếu rạp: #chieurap, #chieu-rap, #rap
+     * - Ngôn ngữ: #thuyetminh, #longtieng, #songngu, #vietsub
+     * - Loại phim: #phimle, #phimbo, #hoathinh, #anime, #tvshows, #phimngan
+     * - Quốc gia: #hanquoc, #trungquoc, #aumy, #nhatban, #thailan, #dailoan, #hongkong, #ando, #vietnam
+     * - Thể loại: #cotrang, #hanhdong, #kinhdi, #tinhcam, #haihuoc, #tamly, #hinhsu, #vientuong, #vothuat, #thanthoai, #hocduong, #chientranh, #bian, #phieuluu, #tailieu, #giadinh
+     * - Năm: nam:2024, year:2024, #2024
+     * - Sắp xếp: #hot, #xemnhieu, #danhgia, #moinhat
+     * - Bảng chữ cái: #A, alphabet:A, chu:A
+     */
+    public String buildSearchUrl(String baseUrl, String query, int page) {
+        if (query == null) query = "";
+        String cleanQuery = query.trim();
+
+        // 0. Nếu người dùng dán trực tiếp đường dẫn hoặc path (/duyet-tim?...)
+        if (cleanQuery.startsWith("http://") || cleanQuery.startsWith("https://")
+                || cleanQuery.startsWith("/duyet-tim") || cleanQuery.startsWith("duyet-tim")
+                || cleanQuery.startsWith("/loai-phim") || cleanQuery.startsWith("loai-phim")
+                || cleanQuery.startsWith("/the-loai") || cleanQuery.startsWith("the-loai")
+                || cleanQuery.startsWith("/quoc-gia") || cleanQuery.startsWith("quoc-gia")
+                || cleanQuery.startsWith("/song-ngu") || cleanQuery.startsWith("song-ngu")
+                || cleanQuery.startsWith("/phim-ngan") || cleanQuery.startsWith("phim-ngan")) {
+            String fullUrl = cleanQuery;
+            if (!fullUrl.startsWith("http")) {
+                String p = cleanQuery.startsWith("/") ? cleanQuery : "/" + cleanQuery;
+                fullUrl = baseUrl + p;
+            }
+            if (fullUrl.contains("page=")) {
+                return fullUrl.replaceAll("([?&])page=[0-9]*", "$1page=" + page);
+            } else {
+                String connector = fullUrl.contains("?") ? "&" : "?";
+                return fullUrl + connector + "page=" + page;
+            }
+        }
+
+        List<String> params = new ArrayList<>();
+
+        // 1. Phim chiếu rạp
+        if (matchesTag(cleanQuery, "(#?chieu[-_ ]?rap|#rap)")) {
+            params.add("isChieuRap=true");
+            cleanQuery = removeTag(cleanQuery, "(#?chieu[-_ ]?rap|#rap)");
+        }
+
+        // 2. Ngôn ngữ
+        if (matchesTag(cleanQuery, "(#?thuyet[-_ ]?minh|#tm)")) {
+            params.add("lang=thuyet-minh");
+            cleanQuery = removeTag(cleanQuery, "(#?thuyet[-_ ]?minh|#tm)");
+        } else if (matchesTag(cleanQuery, "(#?long[-_ ]?tieng|#lt)")) {
+            params.add("lang=long-tieng");
+            cleanQuery = removeTag(cleanQuery, "(#?long[-_ ]?tieng|#lt)");
+        } else if (matchesTag(cleanQuery, "(#?song[-_ ]?ngu|#sn)")) {
+            params.add("lang=song-ngu");
+            cleanQuery = removeTag(cleanQuery, "(#?song[-_ ]?ngu|#sn)");
+        } else if (matchesTag(cleanQuery, "(#?vietsub|#sub)")) {
+            params.add("lang=vietsub");
+            cleanQuery = removeTag(cleanQuery, "(#?vietsub|#sub)");
+        }
+
+        // 3. Loại phim
+        if (matchesTag(cleanQuery, "(#?phim[-_ ]?le|#le)")) {
+            params.add("typeList=phim-le");
+            cleanQuery = removeTag(cleanQuery, "(#?phim[-_ ]?le|#le)");
+        } else if (matchesTag(cleanQuery, "(#?phim[-_ ]?bo|#bo)")) {
+            params.add("typeList=phim-bo");
+            cleanQuery = removeTag(cleanQuery, "(#?phim[-_ ]?bo|#bo)");
+        } else if (matchesTag(cleanQuery, "(#?hoat[-_ ]?hinh|#anime)")) {
+            params.add("typeList=hoat-hinh");
+            cleanQuery = removeTag(cleanQuery, "(#?hoat[-_ ]?hinh|#anime)");
+        } else if (matchesTag(cleanQuery, "(#?tv[-_ ]?shows?|#tvshow)")) {
+            params.add("typeList=tv-shows");
+            cleanQuery = removeTag(cleanQuery, "(#?tv[-_ ]?shows?|#tvshow)");
+        } else if (matchesTag(cleanQuery, "(#?phim[-_ ]?ngan|#shorts?)")) {
+            params.add("typeList=phim-ngan");
+            cleanQuery = removeTag(cleanQuery, "(#?phim[-_ ]?ngan|#shorts?)");
+        }
+
+        // 4. Quốc gia
+        String[][] countryMap = {
+                {"han-quoc", "(#?han[-_ ]?quoc|#korea|#korean|#hq)"},
+                {"trung-quoc", "(#?trung[-_ ]?quoc|#china|#chinese|#tq)"},
+                {"au-my", "(#?au[-_ ]?my|#usuk|#us[-_ ]?uk|#hollywood|#my)"},
+                {"nhat-ban", "(#?nhat[-_ ]?ban|#japan|#japanese|#nb)"},
+                {"thai-lan", "(#?thai[-_ ]?lan|#thailand|#thai)"},
+                {"dai-loan", "(#?dai[-_ ]?loan|#taiwan)"},
+                {"hong-kong", "(#?hong[-_ ]?kong|#hk)"},
+                {"an-do", "(#?an[-_ ]?do|#india|#indian)"},
+                {"viet-nam", "(#?viet[-_ ]?nam|#vietnam|#vn)"}
+        };
+        for (String[] entry : countryMap) {
+            if (matchesTag(cleanQuery, entry[1])) {
+                params.add("country=" + entry[0]);
+                cleanQuery = removeTag(cleanQuery, entry[1]);
+                break;
+            }
+        }
+
+        // 5. Thể loại
+        String[][] catMap = {
+                {"co-trang", "(#?co[-_ ]?trang)"},
+                {"hanh-dong", "(#?hanh[-_ ]?dong|#action)"},
+                {"kinh-di", "(#?kinh[-_ ]?di|#horror)"},
+                {"tinh-cam", "(#?tinh[-_ ]?cam|#lang[-_ ]?man|#romance)"},
+                {"hai-huoc", "(#?hai[-_ ]?huoc|#comedy|#hai)"},
+                {"tam-ly", "(#?tam[-_ ]?ly|#drama)"},
+                {"hinh-su", "(#?hinh[-_ ]?su|#crime)"},
+                {"vien-tuong", "(#?vien[-_ ]?tuong|#scifi|#sci-fi)"},
+                {"vo-thuat", "(#?vo[-_ ]?thuat|#martial[-_ ]?arts)"},
+                {"than-thoai", "(#?than[-_ ]?thoai|#fantasy)"},
+                {"hoc-duong", "(#?hoc[-_ ]?duong|#school)"},
+                {"chien-tranh", "(#?chien[-_ ]?tranh|#war)"},
+                {"bi-an", "(#?bi[-_ ]?an|#mystery)"},
+                {"phieu-luu", "(#?phieu[-_ ]?luu|#adventure)"},
+                {"tai-lieu", "(#?tai[-_ ]?lieu|#documentary)"},
+                {"gia-dinh", "(#?gia[-_ ]?dinh|#family)"},
+                {"kinh-dien", "(#?kinh[-_ ]?dien|#classic)"}
+        };
+        for (String[] entry : catMap) {
+            if (matchesTag(cleanQuery, entry[1])) {
+                params.add("category=" + entry[0]);
+                cleanQuery = removeTag(cleanQuery, entry[1]);
+                break;
+            }
+        }
+
+        // 6. Năm phát hành (vd: nam:2024, year:2024, #2024)
+        java.util.regex.Matcher yearMatcher = java.util.regex.Pattern.compile("(?i)\\b(?:year|nam|#)?\\s*[:=]?\\s*(20[0-2][0-9]|19[89][0-9])\\b").matcher(cleanQuery);
+        if (yearMatcher.find()) {
+            params.add("year=" + yearMatcher.group(1));
+            cleanQuery = cleanQuery.replace(yearMatcher.group(0), " ").trim();
+        }
+
+        // 7. Sắp xếp
+        if (matchesTag(cleanQuery, "(#?xem[-_ ]?nhieu|#hot|#view)")) {
+            params.add("sortField=view");
+            cleanQuery = removeTag(cleanQuery, "(#?xem[-_ ]?nhieu|#hot|#view)");
+        } else if (matchesTag(cleanQuery, "(#?danh[-_ ]?gia|#rating)")) {
+            params.add("sortField=rating");
+            cleanQuery = removeTag(cleanQuery, "(#?danh[-_ ]?gia|#rating)");
+        } else if (matchesTag(cleanQuery, "(#?moi[-_ ]?nhat|#cap[-_ ]?nhat)")) {
+            params.add("sortField=modified");
+            cleanQuery = removeTag(cleanQuery, "(#?moi[-_ ]?nhat|#cap[-_ ]?nhat)");
+        }
+
+        // 8. Bảng chữ cái (vd: alphabet:A, chu:A)
+        java.util.regex.Matcher alphaMatcher = java.util.regex.Pattern.compile("(?i)\\b(?:alphabet|chu)\\s*[:=]\\s*([A-Za-z#])\\b").matcher(cleanQuery);
+        if (alphaMatcher.find()) {
+            params.add("alphabet=" + alphaMatcher.group(1).toUpperCase());
+            cleanQuery = cleanQuery.replace(alphaMatcher.group(0), " ").trim();
+        }
+
+        // 9. Chuẩn hóa từ khóa tìm kiếm còn lại
+        cleanQuery = cleanQuery.replaceAll("[#:]", " ").replaceAll("\\s+", " ").trim();
+        if (!cleanQuery.isEmpty()) {
+            try {
+                params.add(0, "search=" + java.net.URLEncoder.encode(cleanQuery, "UTF-8"));
+            } catch (Exception ignored) {
+                params.add(0, "search=" + cleanQuery);
+            }
+        }
+
+        // 10. Phân trang
+        params.add("page=" + page);
+
+        StringBuilder sb = new StringBuilder();
+        sb.append(baseUrl).append("/duyet-tim?");
+        for (int i = 0; i < params.size(); i++) {
+            if (i > 0) sb.append("&");
+            sb.append(params.get(i));
+        }
+
+        return sb.toString();
+    }
+
+    private boolean matchesTag(String text, String regex) {
+        return java.util.regex.Pattern.compile("(?i)(^|\\s)" + regex + "($|\\s)").matcher(text).find();
+    }
+
+    private String removeTag(String text, String regex) {
+        return text.replaceAll("(?i)(^|\\s)" + regex + "($|\\s)", " ").replaceAll("\\s+", " ").trim();
+    }
 }

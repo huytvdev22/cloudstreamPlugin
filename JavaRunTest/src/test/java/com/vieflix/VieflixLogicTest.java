@@ -132,11 +132,40 @@ public class VieflixLogicTest {
     }
 
     @Test
-    @DisplayName("Test 2: Tìm kiếm phim theo từ khóa")
+    @DisplayName("Test 2: Tìm kiếm phim theo từ khóa và bộ lọc thông minh")
     public void testSearchMovie() {
+        // 1. Test buildSearchUrl (Smart Filter Query Parser)
+        String url1 = VieflixLogic.buildSearchUrl(BASE_URL, "conan", 1);
+        assertEquals(BASE_URL + "/duyet-tim?search=conan&page=1", url1);
+
+        String url2 = VieflixLogic.buildSearchUrl(BASE_URL, "conan #thuyetminh", 1);
+        assertTrue(url2.contains("search=conan"));
+        assertTrue(url2.contains("lang=thuyet-minh"));
+        assertTrue(url2.contains("page=1"));
+
+        String url3 = VieflixLogic.buildSearchUrl(BASE_URL, "#chieurap #hanquoc nam:2024", 2);
+        assertTrue(url3.contains("isChieuRap=true"));
+        assertTrue(url3.contains("country=han-quoc"));
+        assertTrue(url3.contains("year=2024"));
+        assertTrue(url3.contains("page=2"));
+
+        String url4 = VieflixLogic.buildSearchUrl(BASE_URL, "#cotrang #trungquoc #phimbo", 1);
+        assertTrue(url4.contains("category=co-trang"));
+        assertTrue(url4.contains("country=trung-quoc"));
+        assertTrue(url4.contains("typeList=phim-bo"));
+
+        String url5 = VieflixLogic.buildSearchUrl(BASE_URL, "/duyet-tim?category=kinh-di", 3);
+        assertEquals(BASE_URL + "/duyet-tim?category=kinh-di&page=3", url5);
+
+        System.out.println("✅ buildSearchUrl test thành công:");
+        System.out.println("   [1] conan -> " + url1);
+        System.out.println("   [2] conan #thuyetminh -> " + url2);
+        System.out.println("   [3] #chieurap #hanquoc nam:2024 -> " + url3);
+
+        // 2. Live network test
         try {
             String query = "conan";
-            String searchUrl = BASE_URL + "/duyet-tim?search=" + query;
+            String searchUrl = VieflixLogic.buildSearchUrl(BASE_URL, query, 1);
             System.out.println("GET Search: " + searchUrl);
 
             Document doc = Jsoup.connect(searchUrl)
