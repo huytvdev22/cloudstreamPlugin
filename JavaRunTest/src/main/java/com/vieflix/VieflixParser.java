@@ -8,13 +8,17 @@ import com.cloudstream.core.model.VideoLink;
 import com.cloudstream.core.parser.MovieParser;
 import com.cloudstream.core.util.HtmlHelper;
 import com.cloudstream.core.util.RegexHelper;
+import org.json.JSONArray;
+import org.json.JSONObject;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * VieflixParser - Triển khai MovieParser bóc tách HTML chuyên biệt cho nguồn Vieflix.
@@ -294,46 +298,156 @@ public class VieflixParser implements MovieParser {
     @Override
     public List<VideoLink> extractVideoLinks(String html, String slug) {
         List<VideoLink> result = new ArrayList<>();
+        Set<String> seenUrls = new HashSet<>();
 
-        String searchSlug = "\\\"slug\\\":\\\"" + slug + "\\\"";
-        String slugKey = "\\\"slug\\\":\\\"";
-        String m3u8Key = "\\\"linkM3u8\\\":\\\"";
-        String embedKey = "\\\"linkEmbed\\\":\\\"";
-        String closingQuote = "\\\"";
+        // 1. Chuẩn hóa chuỗi JSON (xử lý escape quotes)
+        String clean = html.replace("\\\"", "\"").replace("\\\\", "\\");
 
-        int startIndex = html.indexOf(searchSlug);
-
-        while (startIndex != -1) {
-            int endOfBlock = html.indexOf(slugKey, startIndex + searchSlug.length());
-            String block = (endOfBlock != -1)
-                    ? html.substring(startIndex, endOfBlock)
-                    : html.substring(startIndex);
-
-            // 1. Tìm Link M3U8
-            String m3u8Url = RegexHelper.extractBetween(block, m3u8Key, closingQuote);
-            if (m3u8Url != null && !m3u8Url.trim().isEmpty() && m3u8Url.contains(".m3u8")) {
-                result.add(new VideoLink(VideoLink.TYPE_M3U8, m3u8Url, "Vieflix M3U8"));
-            }
-
-            // 2. Tìm Link Embed
-            String embedUrl = RegexHelper.extractBetween(block, embedKey, closingQuote);
-            if (embedUrl != null && !embedUrl.trim().isEmpty()) {
-                if (embedUrl.contains("url=") && embedUrl.contains(".m3u8")) {
-                    String m3u8 = embedUrl.substring(embedUrl.indexOf("url=") + 4);
-                    int ampIdx = m3u8.indexOf('&');
-                    if (ampIdx != -1) m3u8 = m3u8.substring(0, ampIdx);
-                    result.add(new VideoLink(VideoLink.TYPE_M3U8, m3u8, "Vieflix Embed"));
-                } else {
-                    result.add(new VideoLink(VideoLink.TYPE_EMBED, embedUrl, "Vieflix Embed"));
+        String sourcesMarker = "\"sources\":[";
+        int sIdx = clean.indexOf(sourcesMarker);
+        if (sIdx != -1) {
+            int start = sIdx + sourcesMarker.length() - 1;
+            int depth = 0;
+            int end = -1;
+            for (int i = start; i < clean.length(); i++) {
+                char c = clean.charAt(i);
+                if (c == '[') depth++;
+                else if (c == ']') {
+                    depth--;
+                    if (depth == 0) {
+                        end = i;
+                        break;
+                    }
                 }
             }
 
-            startIndex = html.indexOf(searchSlug, startIndex + searchSlug.length());
+            if (end != -1) {
+                String sourcesJson = clean.substring(start, end + 1);
+                try {
+                    JSONArray sources = new JSONArray(sourcesJson);
+                    for (int i = 0; i < sources.length(); i++) {
+                        JSONObject server = sources.optJSONObject(i);
+                        if (server == null) continue;
+
+                        String serverName = server.optString("serverName", "Máy chủ " + (i + 1));
+                        if (serverName.trim().isEmpty()) {
+                            serverName = "Máy chủ " + (i + 1);
+                        }
+
+                        JSONArray languages = server.optJSONArray("languages");
+                        if (languages != null) {
+                            for (int j = 0; j < languages.length(); j++) {
+                                JSONObject lang = languages.optJSONObject(j);
+                                if (lang == null) continue;
+
+                                String langName = lang.optString("name", "Vietsub");
+                                if (langName.trim().isEmpty()) {
+                                    langName = lang.optString("slug", "Vietsub");
+                                }
+                                langName = langName.replaceAll("\\s*#\\d+", "").trim();
+                                if (langName.equalsIgnoreCase("vietsub")) langName = "Vietsub";
+                                else if (langName.equalsIgnoreCase("thuyet-minh") || langName.equalsIgnoreCase("thuyết minh")) langName = "Thuyết Minh";
+                                else if (langName.equalsIgnoreCase("long-tieng") || langName.equalsIgnoreCase("lồng tiếng")) langName = "Lồng Tiếng";
+                                else if (langName.equalsIgnoreCase("song-ngu") || langName.equalsIgnoreCase("song ngữ")) langName = "Song Ngữ";
+
+                                JSONArray episodes = lang.optJSONArray("episodes");
+                                if (episodes != null) {
+                                    for (int k = 0; k < episodes.length(); k++) {
+                                        JSONObject ep = episodes.optJSONObject(k);
+                                        if (ep == null) continue;
+
+                                        String epSlug = ep.optString("slug", "");
+                                        if (slug.equals(epSlug)) {
+                                            String m3u8 = ep.optString("linkM3u8", "");
+                                            String embed = ep.optString("linkEmbed", "");
+                                            String direct = ep.optString("linkDirect", "");
+
+                                            String label = "[" + langName + "] " + serverName;
+
+                                            if (!m3u8.isEmpty() && m3u8.contains(".m3u8") && !seenUrls.contains(m3u8)) {
+                                                seenUrls.add(m3u8);
+                                                result.add(new VideoLink(VideoLink.TYPE_M3U8, m3u8, label));
+                                            }
+
+                                            if (!embed.isEmpty()) {
+                                                if (embed.contains("url=") && embed.contains(".m3u8")) {
+                                                    String cleanM3u8 = embed.substring(embed.indexOf("url=") + 4);
+                                                    int amp = cleanM3u8.indexOf('&');
+                                                    if (amp != -1) cleanM3u8 = cleanM3u8.substring(0, amp);
+                                                    if (!seenUrls.contains(cleanM3u8)) {
+                                                        seenUrls.add(cleanM3u8);
+                                                        result.add(new VideoLink(VideoLink.TYPE_M3U8, cleanM3u8, label));
+                                                    }
+                                                } else if (!seenUrls.contains(embed)) {
+                                                    seenUrls.add(embed);
+                                                    result.add(new VideoLink(VideoLink.TYPE_EMBED, embed, label));
+                                                }
+                                            }
+
+                                            if (!direct.isEmpty() && !seenUrls.contains(direct)) {
+                                                seenUrls.add(direct);
+                                                result.add(new VideoLink(VideoLink.TYPE_M3U8, direct, label));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    System.out.println("⚠️ Lỗi parse sources JSON: " + e.getMessage());
+                }
+            }
         }
 
-        // Fallback: Tìm linkM3u8 đầu tiên trong HTML nếu không tìm thấy theo slug
+        // Fallback: Tìm theo searchSlug dạng khối nếu không trích xuất được từ sources
         if (result.isEmpty()) {
-            String fbM3u8 = RegexHelper.extractBetween(html, m3u8Key, closingQuote);
+            String searchSlug = "\"slug\":\"" + slug + "\"";
+            String slugKey = "\"slug\":\"";
+            String m3u8Key = "\"linkM3u8\":\"";
+            String embedKey = "\"linkEmbed\":\"";
+            String closingQuote = "\"";
+
+            int startIndex = clean.indexOf(searchSlug);
+            while (startIndex != -1) {
+                int endOfBlock = clean.indexOf(slugKey, startIndex + searchSlug.length());
+                String block = (endOfBlock != -1)
+                        ? clean.substring(startIndex, endOfBlock)
+                        : clean.substring(startIndex);
+
+                String m3u8Url = RegexHelper.extractBetween(block, m3u8Key, closingQuote);
+                if (m3u8Url != null && !m3u8Url.trim().isEmpty() && m3u8Url.contains(".m3u8")) {
+                    if (!seenUrls.contains(m3u8Url)) {
+                        seenUrls.add(m3u8Url);
+                        result.add(new VideoLink(VideoLink.TYPE_M3U8, m3u8Url, "Vieflix M3U8"));
+                    }
+                }
+
+                String embedUrl = RegexHelper.extractBetween(block, embedKey, closingQuote);
+                if (embedUrl != null && !embedUrl.trim().isEmpty()) {
+                    if (embedUrl.contains("url=") && embedUrl.contains(".m3u8")) {
+                        String m3u8 = embedUrl.substring(embedUrl.indexOf("url=") + 4);
+                        int ampIdx = m3u8.indexOf('&');
+                        if (ampIdx != -1) m3u8 = m3u8.substring(0, ampIdx);
+                        if (!seenUrls.contains(m3u8)) {
+                            seenUrls.add(m3u8);
+                            result.add(new VideoLink(VideoLink.TYPE_M3U8, m3u8, "Vieflix Embed"));
+                        }
+                    } else if (!seenUrls.contains(embedUrl)) {
+                        seenUrls.add(embedUrl);
+                        result.add(new VideoLink(VideoLink.TYPE_EMBED, embedUrl, "Vieflix Embed"));
+                    }
+                }
+
+                startIndex = clean.indexOf(searchSlug, startIndex + searchSlug.length());
+            }
+        }
+
+        // Fallback cuối: Tìm linkM3u8 đầu tiên trong HTML
+        if (result.isEmpty()) {
+            String m3u8Key = "\"linkM3u8\":\"";
+            String closingQuote = "\"";
+            String fbM3u8 = RegexHelper.extractBetween(clean, m3u8Key, closingQuote);
             if (fbM3u8 != null && !fbM3u8.trim().isEmpty() && fbM3u8.contains(".m3u8")) {
                 result.add(new VideoLink(VideoLink.TYPE_M3U8, fbM3u8, "Vieflix Auto"));
             }
