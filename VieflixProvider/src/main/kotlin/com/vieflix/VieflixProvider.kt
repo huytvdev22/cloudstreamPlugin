@@ -159,6 +159,12 @@ class VieflixProvider : MainAPI() {
         val hasDub = item.tags.any { it == "LT" || it == "TM" || it == "SN" }
         val hasSub = item.tags.any { it == "VS" || it == "SN" }
 
+        val tagSuffix = if (item.tags.isNotEmpty()) {
+            " [" + item.tags.joinToString(" • ") + "]"
+        } else ""
+
+        val formattedTitle = "${item.title}$tagSuffix"
+
         val badgeText = if (item.tags.isNotEmpty()) {
             item.tags.joinToString(" • ") { tag ->
                 when (tag) {
@@ -171,7 +177,7 @@ class VieflixProvider : MainAPI() {
             }
         } else null
 
-        return newAnimeSearchResponse(item.title, item.href, TvType.Movie) {
+        return newAnimeSearchResponse(formattedTitle, item.href, TvType.Movie) {
             this.posterUrl = item.posterUrl
             if (badgeText != null) {
                 this.otherName = badgeText
