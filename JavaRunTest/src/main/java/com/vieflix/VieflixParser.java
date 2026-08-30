@@ -127,7 +127,9 @@ public class VieflixParser implements MovieParser {
             if (linkEl == null) continue;
 
             String href = linkEl.attr("href").trim();
-            if (href.isEmpty() || href.startsWith("/phim/") || href.contains("javascript:")) continue;
+            if (href.isEmpty() || href.startsWith("/phim/") || href.startsWith("phim/")
+                    || href.startsWith("/chu-de/") || href.startsWith("chu-de/")
+                    || href.contains("javascript:")) continue;
 
             // Xử lý nếu href là URL tuyệt đối
             if (href.startsWith("http://") || href.startsWith("https://")) {
@@ -165,9 +167,11 @@ public class VieflixParser implements MovieParser {
     @Override
     public List<MovieItem> parseMovieList(String html, String baseUrl) {
         Document document = Jsoup.parse(html, baseUrl);
-        Elements elements = document.select("a[href^=/phim/]");
+        Elements elements = document.select("a[href^=/phim/], a[href^=phim/]");
 
         List<MovieItem> result = new ArrayList<>();
+        List<String> seenHrefs = new ArrayList<>();
+
         for (Element element : elements) {
             Element img = element.selectFirst("img");
 
@@ -176,6 +180,9 @@ public class VieflixParser implements MovieParser {
             if (title.trim().isEmpty()) continue;
 
             String href = HtmlHelper.getAbsoluteUrl(baseUrl, element, "href");
+            if (seenHrefs.contains(href)) continue;
+            seenHrefs.add(href);
+
             String poster = (img != null) ? img.attr("src") : "";
 
             result.add(new MovieItem(title, href, poster.isEmpty() ? null : poster));

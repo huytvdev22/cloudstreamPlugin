@@ -27,7 +27,6 @@ class VieflixProvider : MainAPI() {
         const val PORTAL_URL = VieflixLogic.PORTAL_URL
         const val CONSTAN_JS_URL = "${VieflixLogic.PORTAL_URL}/constan.js"
         private var cachedDomain: String? = null
-        private var cachedMainPage: List<MainPageData>? = null
     }
 
     /**
@@ -67,8 +66,7 @@ class VieflixProvider : MainAPI() {
     // 1. CẤU HÌNH MỤC TRANG CHỦ
     // ==========================================
 
-    // Danh sach muc mac dinh (du phong khi chua fetch duoc HTML trang chu)
-    private val defaultMainPage: List<MainPageData> = mainPageOf(
+    override val mainPage: List<MainPageData> = mainPageOf(
         "/duyet-tim" to "Phim Mới Cập Nhật",
         "/duyet-tim?isChieuRap=true&sortField=year" to "Phim Chiếu Rạp Mới Nhất",
         "/song-ngu" to "Phim Song Ngữ Hot",
@@ -84,31 +82,12 @@ class VieflixProvider : MainAPI() {
         "/loai-phim?typeList=hoat-hinh&country=nhat-ban" to "Phim Anime Nhật Bản"
     )
 
-    override val mainPage: List<MainPageData>
-        get() = cachedMainPage ?: defaultMainPage
-
-    /**
-     * Tu dong lay danh sach muc trang chu dong tu HTML trang chu
-     */
-    private suspend fun fetchDynamicMainPage(domain: String) {
-        if (cachedMainPage != null) return
-        try {
-            val html = app.get(domain, timeout = 5).text
-            val sections = VieflixLogic.parseMainPage(html)
-            if (sections.isNotEmpty()) {
-                cachedMainPage = sections.map { MainPageData(data = it.path, name = it.name) }
-            }
-        } catch (_: Exception) {
-        }
-    }
-
     /**
      * Lay danh sach phim cho trang chu theo tung muc.
      * HTML duoc fetch roi delegate sang VieflixLogic.parseMovieList().
      */
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val domain = getDomain()
-        fetchDynamicMainPage(domain)
 
         val rawPath = request.data
         val cleanPath = if (rawPath.startsWith("http")) {
@@ -135,7 +114,8 @@ class VieflixProvider : MainAPI() {
             }
         }
 
-        return newHomePageResponse(request, items, hasNext = items.isNotEmpty())
+        // Vieflix tra ve 24 phim moi trang -> hasNext = true khi so luong phim dat du 24 phim
+        return newHomePageResponse(request, items, hasNext = items.size >= 24)
     }
 
     // ==========================================
@@ -143,19 +123,28 @@ class VieflixProvider : MainAPI() {
     // ==========================================
 
     /**
-     * Tim kiem phim theo tu khoa.
+     * Tim kiem phim theo tu khoa co ho tro phan trang.
      * Delegate parse HTML sang VieflixLogic.parseMovieList().
      */
-    override suspend fun search(query: String): List<SearchResponse> {
+    override suspend fun search(query: String, page: Int): SearchResponseList {
         val domain = getDomain()
-        val searchUrl = "$domain/duyet-tim?search=$query"
+        val searchUrl = "$domain/duyet-tim?search=$query&page=$page"
         val html = app.get(searchUrl).text
 
-        return VieflixLogic.parseMovieList(html, domain).mapNotNull { item ->
+        val items = VieflixLogic.parseMovieList(html, domain).mapNotNull { item ->
             newMovieSearchResponse(item.title, item.href, TvType.Movie) {
                 this.posterUrl = item.posterUrl
             }
         }
+
+        return newSearchResponseList(items, hasNext = items.size >= 24)
+    }
+
+    /**
+     * Tim kiem phim theo tu khoa (fallback trang 1).
+     */
+    override suspend fun search(query: String): List<SearchResponse> {
+        return search(query, 1).items
     }
 
     // ==========================================
