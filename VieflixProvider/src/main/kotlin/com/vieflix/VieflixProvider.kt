@@ -1,10 +1,12 @@
 package com.vieflix
 
+import com.cloudstream.core.model.MovieItem
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.loadExtractor
+import com.lagradost.cloudstream3.utils.newExtractorLink
 
 /**
  * VieflixProvider - Provider CloudStream cho trang Vieflix.
@@ -44,7 +46,7 @@ class VieflixProvider : MainAPI() {
                 mainUrl = domain
                 return domain
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
         }
 
         // 2. Fallback: Lay tu HTML trang chu portal vieflix.com (doc the a#accessBtn)
@@ -56,7 +58,7 @@ class VieflixProvider : MainAPI() {
                 mainUrl = domain
                 return domain
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
         }
 
         return mainUrl
