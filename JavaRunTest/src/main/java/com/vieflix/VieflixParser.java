@@ -175,9 +175,18 @@ public class VieflixParser implements MovieParser {
         for (Element element : elements) {
             Element img = element.selectFirst("img");
 
-            String title = (img != null) ? img.attr("alt") : "";
-            if (title.isEmpty()) title = element.text();
-            if (title.trim().isEmpty()) continue;
+            String title = (img != null && !img.attr("alt").trim().isEmpty()) ? img.attr("alt").trim() : "";
+            if (title.isEmpty()) {
+                Element heading = element.selectFirst("h2, h3, h4, h5");
+                if (heading != null && !heading.text().trim().isEmpty()) {
+                    title = heading.text().trim();
+                } else {
+                    Element clone = element.clone();
+                    clone.select("span.uppercase, div:has(> svg) span, span[class*=uppercase]").remove();
+                    title = clone.text().trim();
+                }
+            }
+            if (title.isEmpty()) continue;
 
             String href = HtmlHelper.getAbsoluteUrl(baseUrl, element, "href");
             if (seenHrefs.contains(href)) continue;
@@ -185,7 +194,17 @@ public class VieflixParser implements MovieParser {
 
             String poster = (img != null) ? img.attr("src") : "";
 
-            result.add(new MovieItem(title, href, poster.isEmpty() ? null : poster));
+            // Trích xuất các badge nhãn (LT, VS, SN, TM, HD...) từ thẻ card
+            List<String> badges = new ArrayList<>();
+            Elements badgeElements = element.select("span.uppercase, div:has(> svg) span, span[class*=uppercase]");
+            for (Element badgeEl : badgeElements) {
+                String badgeText = badgeEl.text().trim().toUpperCase();
+                if (!badgeText.isEmpty() && !badges.contains(badgeText)) {
+                    badges.add(badgeText);
+                }
+            }
+
+            result.add(new MovieItem(title, href, poster.isEmpty() ? null : poster, badges));
         }
         return result;
     }

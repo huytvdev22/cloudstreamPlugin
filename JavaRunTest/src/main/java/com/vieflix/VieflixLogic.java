@@ -27,6 +27,10 @@ public class VieflixLogic {
         public MovieItem(String title, String href, String posterUrl) {
             super(title, href, posterUrl);
         }
+
+        public MovieItem(String title, String href, String posterUrl, List<String> tags) {
+            super(title, href, posterUrl, tags);
+        }
     }
 
     public static class MovieDetail extends com.cloudstream.core.model.MovieDetail {

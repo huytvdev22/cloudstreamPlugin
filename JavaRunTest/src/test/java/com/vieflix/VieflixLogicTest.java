@@ -99,12 +99,15 @@ public class VieflixLogicTest {
                 + "<a href=\"/phim/test-movie\">"
                 + "<img src=\"https://vieflix.top/poster.jpg\" />"
                 + "<h3>Phim Test Mẫu</h3>"
+                + "<span class=\"uppercase\">LT</span><span class=\"uppercase\">VS</span>"
                 + "</a></div>";
         List<MovieItem> mockMovies = VieflixLogic.parseMovieList(mockHtml, BASE_URL);
         assertNotNull(mockMovies);
         assertEquals(1, mockMovies.size());
         assertEquals("Phim Test Mẫu", mockMovies.get(0).title);
         assertEquals(BASE_URL + "/phim/test-movie", mockMovies.get(0).href);
+        assertTrue(mockMovies.get(0).tags.contains("LT"));
+        assertTrue(mockMovies.get(0).tags.contains("VS"));
 
         // 2. Live network test
         try {

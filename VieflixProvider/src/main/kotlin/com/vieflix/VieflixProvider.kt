@@ -113,9 +113,7 @@ class VieflixProvider : MainAPI() {
 
         // Delegate: giao toan bo logic parse cho VieflixLogic (Java)
         val items = VieflixLogic.parseMovieList(html, domain).mapNotNull { item ->
-            newMovieSearchResponse(item.title, item.href, TvType.Movie) {
-                this.posterUrl = item.posterUrl
-            }
+            toSearchResponse(item)
         }
 
         // Vieflix tra ve 24 phim moi trang -> hasNext = true khi so luong phim dat du 24 phim
@@ -136,9 +134,7 @@ class VieflixProvider : MainAPI() {
         val html = app.get(searchUrl).text
 
         val items = VieflixLogic.parseMovieList(html, domain).mapNotNull { item ->
-            newMovieSearchResponse(item.title, item.href, TvType.Movie) {
-                this.posterUrl = item.posterUrl
-            }
+            toSearchResponse(item)
         }
 
         return newSearchResponseList(items, hasNext = items.size >= 24)
@@ -149,6 +145,43 @@ class VieflixProvider : MainAPI() {
      */
     override suspend fun search(query: String): List<SearchResponse> {
         return search(query, 1).items
+    }
+
+    /**
+     * Chuyen doi MovieItem thanh SearchResponse co gan day du:
+     * - Badges ngon ngu: Vietsub (VS), Long Tieng (LT), Thuyet Minh (TM), Song Ngu (SN)
+     * - DubStatus: Tu dong bat badge DUB / SUB tren goc poster
+     * - otherName: Hien thi danh sach tag ngon ngu duoi ten phim tren giao dien TV/Mobile
+     */
+    private fun toSearchResponse(item: MovieItem): SearchResponse {
+        val hasDub = item.tags.any { it == "LT" || it == "TM" || it == "SN" }
+        val hasSub = item.tags.any { it == "VS" || it == "SN" }
+
+        val badgeText = if (item.tags.isNotEmpty()) {
+            item.tags.joinToString(" • ") { tag ->
+                when (tag) {
+                    "LT" -> "🎙️ Lồng Tiếng"
+                    "TM" -> "🔊 Thuyết Minh"
+                    "VS" -> "🔤 Vietsub"
+                    "SN" -> "🌐 Song Ngữ"
+                    else -> tag
+                }
+            }
+        } else null
+
+        return newAnimeSearchResponse(item.title, item.href, TvType.Movie) {
+            this.posterUrl = item.posterUrl
+            if (badgeText != null) {
+                this.otherName = badgeText
+            }
+            if (hasDub && hasSub) {
+                this.dubStatus = java.util.EnumSet.of(DubStatus.Dubbed, DubStatus.Subbed)
+            } else if (hasDub) {
+                this.dubStatus = java.util.EnumSet.of(DubStatus.Dubbed)
+            } else if (hasSub) {
+                this.dubStatus = java.util.EnumSet.of(DubStatus.Subbed)
+            }
+        }
     }
 
     // ==========================================
