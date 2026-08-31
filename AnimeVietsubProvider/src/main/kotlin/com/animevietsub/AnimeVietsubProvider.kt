@@ -28,9 +28,10 @@ class AnimeVietsubProvider : MainAPI() {
         override var lang = "vi"
         override val hasMainPage = true
 
-        companion object {
+    companion object {
         const val PORTAL_URL = AnimeVietsubLogic.PORTAL_URL
         private var cachedDomain: String? = null
+        private val cookieMap = java.util.concurrent.ConcurrentHashMap<String, String>()
     }
 
     /**
@@ -41,6 +42,7 @@ class AnimeVietsubProvider : MainAPI() {
 
         try {
             val res = app.get(PORTAL_URL, timeout = 5)
+            extractCookies(res.okhttpResponse.headers)
             val finalUrl = res.url
             if (finalUrl.isNotEmpty() && finalUrl.startsWith("http")) {
                 val domain = finalUrl.trimEnd('/')
@@ -49,27 +51,56 @@ class AnimeVietsubProvider : MainAPI() {
                 return domain
             }
         } catch (e: Exception) {
+            extractCookiesFromException(e)
         }
 
         return mainUrl
     }
 
-    private var isSessionInitialized = false
+    private fun extractCookies(headers: okhttp3.Headers?) {
+        if (headers == null) return
+        val setCookies = headers.values("set-cookie")
+        for (sc in setCookies) {
+            val parts = sc.split(";")
+            if (parts.isNotEmpty()) {
+                val kv = parts[0].split("=", limit = 2)
+                if (kv.size == 2) {
+                    val k = kv[0].trim()
+                    val v = kv[1].trim()
+                    if (k.isNotEmpty() && v.isNotEmpty()) {
+                        cookieMap[k] = v
+                    }
+                }
+            }
+        }
+    }
+
+    private fun extractCookiesFromException(e: Exception) {
+        try {
+            val field = e.javaClass.getDeclaredField("response")
+            field.isAccessible = true
+            val resp = field.get(e) as? okhttp3.Response
+            extractCookies(resp?.headers)
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun getCookieHeader(): String {
+        return cookieMap.entries.joinToString("; ") { "${it.key}=${it.value}" }
+    }
 
     private suspend fun ensureSession(domain: String) {
-        if (isSessionInitialized) return
+        if (cookieMap.isNotEmpty()) return
+        val headers = mapOf(
+            "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+        )
         try {
-            // Handshake với trang chủ để OkHttp tự động lưu Set-Cookie phiên làm việc
-            app.get(
-                "$domain/",
-                headers = mapOf(
-                    "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-                    "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
-                )
-            )
-        } catch (ignored: Exception) {
+            val res = app.get("$domain/", headers = headers)
+            extractCookies(res.okhttpResponse.headers)
+        } catch (e: Exception) {
+            extractCookiesFromException(e)
         }
-        isSessionInitialized = true
     }
 
     /**
@@ -77,18 +108,31 @@ class AnimeVietsubProvider : MainAPI() {
      */
     private suspend fun fetchHtml(url: String, domain: String): String {
         ensureSession(domain)
-        val headers = mapOf(
+        val headers = mutableMapOf(
             "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
             "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
             "Accept-Language" to "vi,en-US;q=0.9,en;q=0.8",
             "Referer" to "$domain/"
         )
+        val cHeader = getCookieHeader()
+        if (cHeader.isNotEmpty()) {
+            headers["Cookie"] = cHeader
+        }
+
         return try {
-            app.get(url, headers = headers).text
+            val res = app.get(url, headers = headers)
+            extractCookies(res.okhttpResponse.headers)
+            res.text
         } catch (e: Exception) {
+            extractCookiesFromException(e)
+            val retryCookie = getCookieHeader()
+            if (retryCookie.isNotEmpty()) {
+                headers["Cookie"] = retryCookie
+            }
             try {
-                // Retry lại với cookie đã nhận
-                app.get(url, headers = headers).text
+                val res2 = app.get(url, headers = headers)
+                extractCookies(res2.okhttpResponse.headers)
+                res2.text
             } catch (ex: Exception) {
                 ""
             }
@@ -100,15 +144,18 @@ class AnimeVietsubProvider : MainAPI() {
     // ==========================================
 
     override val mainPage: List<MainPageData> = mainPageOf(
-        "/danh-sach/phim-moi-cap-nhat/" to "🔥 Anime Mới Cập Nhật",
+        "" to "🔥 Anime Mới Cập Nhật",
         "/danh-sach/list-dang-chieu/" to "📺 Anime Đang Chiếu",
-        "/danh-sach/list-tron-bo/" to "🎬 Anime Trọn Bộ",
+        "/anime-bo/" to "⛩️ Anime Bộ (TV Series)",
+        "/anime-le/" to "🎬 Anime Lẻ (Movie/OVA)",
+        "/danh-sach/list-tron-bo/" to "📦 Anime Trọn Bộ",
+        "/hoat-hinh-trung-quoc/" to "🐉 Hoạt Hình Trung Quốc",
         "/bang-xep-hang/day.html" to "⭐ Top Anime Hôm Nay",
         "/bang-xep-hang/season.html" to "🌸 Top Anime Mùa Này",
         "/the-loai/hanh-dong/" to "💥 Hành Động & Phiêu Lưu",
-        "/the-loai/co-trang/" to "🎎 Cổ Trang & Huyền Huyễn",
+        "/the-loai/tinh-cam/" to "💖 Tình Cảm & Lãng Mạn",
         "/the-loai/hai-huoc/" to "🤣 Hài Hước & Đời Thường",
-        "/the-loai/dong-tinh-nam/" to "👬 Đam Mỹ & Boys Love"
+        "/the-loai/phep-thuat/" to "✨ Phép Thuật & Fantasy"
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
