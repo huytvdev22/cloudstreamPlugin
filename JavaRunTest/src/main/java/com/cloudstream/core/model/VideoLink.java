@@ -11,11 +11,19 @@ public class VideoLink {
     public final String type;
     public final String url;
     public final String label;
+    public final String serverName;
+    public final String langName;
 
     public VideoLink(String type, String url, String label) {
+        this(type, url, label, "Vieflix", label);
+    }
+
+    public VideoLink(String type, String url, String label, String serverName, String langName) {
         this.type = type;
         this.url = url;
         this.label = label;
+        this.serverName = serverName;
+        this.langName = langName;
     }
 
     @Override

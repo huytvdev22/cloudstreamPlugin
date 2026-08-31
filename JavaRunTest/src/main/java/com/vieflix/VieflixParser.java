@@ -329,9 +329,12 @@ public class VieflixParser implements MovieParser {
                         JSONObject server = sources.optJSONObject(i);
                         if (server == null) continue;
 
-                        String serverName = server.optString("serverName", "Máy chủ " + (i + 1));
-                        if (serverName.trim().isEmpty()) {
-                            serverName = "Máy chủ " + (i + 1);
+                        String rawServerName = server.optString("serverName", "");
+                        String serverDisplayName;
+                        if (rawServerName.trim().isEmpty()) {
+                            serverDisplayName = "Máy chủ " + (i + 1);
+                        } else {
+                            serverDisplayName = "Máy chủ " + (i + 1) + " (" + rawServerName.trim() + ")";
                         }
 
                         JSONArray languages = server.optJSONArray("languages");
@@ -362,11 +365,11 @@ public class VieflixParser implements MovieParser {
                                             String embed = ep.optString("linkEmbed", "");
                                             String direct = ep.optString("linkDirect", "");
 
-                                            String label = "[" + langName + "] " + serverName;
+                                            String label = serverDisplayName + " - " + langName;
 
                                             if (!m3u8.isEmpty() && m3u8.contains(".m3u8") && !seenUrls.contains(m3u8)) {
                                                 seenUrls.add(m3u8);
-                                                result.add(new VideoLink(VideoLink.TYPE_M3U8, m3u8, label));
+                                                result.add(new VideoLink(VideoLink.TYPE_M3U8, m3u8, label, serverDisplayName, langName));
                                             }
 
                                             if (!embed.isEmpty()) {
@@ -376,17 +379,17 @@ public class VieflixParser implements MovieParser {
                                                     if (amp != -1) cleanM3u8 = cleanM3u8.substring(0, amp);
                                                     if (!seenUrls.contains(cleanM3u8)) {
                                                         seenUrls.add(cleanM3u8);
-                                                        result.add(new VideoLink(VideoLink.TYPE_M3U8, cleanM3u8, label));
+                                                        result.add(new VideoLink(VideoLink.TYPE_M3U8, cleanM3u8, label, serverDisplayName, langName));
                                                     }
                                                 } else if (!seenUrls.contains(embed)) {
                                                     seenUrls.add(embed);
-                                                    result.add(new VideoLink(VideoLink.TYPE_EMBED, embed, label));
+                                                    result.add(new VideoLink(VideoLink.TYPE_EMBED, embed, label, serverDisplayName, langName));
                                                 }
                                             }
 
                                             if (!direct.isEmpty() && !seenUrls.contains(direct)) {
                                                 seenUrls.add(direct);
-                                                result.add(new VideoLink(VideoLink.TYPE_M3U8, direct, label));
+                                                result.add(new VideoLink(VideoLink.TYPE_M3U8, direct, label, serverDisplayName, langName));
                                             }
                                         }
                                     }

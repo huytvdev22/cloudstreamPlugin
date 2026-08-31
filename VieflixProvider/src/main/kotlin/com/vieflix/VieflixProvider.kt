@@ -293,12 +293,15 @@ class VieflixProvider : MainAPI() {
 
         // Chuyen VideoLink (Java) -> ExtractorLink (CloudStream) hoac goi loadExtractor
         for (link in videoLinks) {
+            val serverSource = if (!link.serverName.isNullOrBlank()) link.serverName else name
+            val streamName = if (!link.langName.isNullOrBlank()) link.langName else link.label
+
             when (link.type) {
                 VieflixLogic.VideoLink.TYPE_M3U8 -> {
                     callback.invoke(
                         ExtractorLink(
-                            source = name,
-                            name = link.label,
+                            source = serverSource,
+                            name = streamName,
                             url = link.url,
                             referer = domain,
                             quality = Qualities.P1080.value,
@@ -307,8 +310,19 @@ class VieflixProvider : MainAPI() {
                     )
                 }
                 VieflixLogic.VideoLink.TYPE_EMBED -> {
-                    // Giao cho CloudStream tu xu ly embed (Doodstream, Streamtape, ...)
-                    loadExtractor(link.url, domain, subtitleCallback, callback)
+                    loadExtractor(link.url, domain, subtitleCallback) { extractedLink ->
+                        callback.invoke(
+                            ExtractorLink(
+                                source = serverSource,
+                                name = if (!link.langName.isNullOrBlank()) "${link.langName} (${extractedLink.name})" else extractedLink.name,
+                                url = extractedLink.url,
+                                referer = extractedLink.referer,
+                                quality = extractedLink.quality,
+                                type = extractedLink.type,
+                                headers = extractedLink.headers
+                            )
+                        )
+                    }
                 }
             }
         }

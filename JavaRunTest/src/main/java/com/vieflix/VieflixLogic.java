@@ -50,6 +50,10 @@ public class VieflixLogic {
         public VideoLink(String type, String url, String label) {
             super(type, url, label);
         }
+
+        public VideoLink(String type, String url, String label, String serverName, String langName) {
+            super(type, url, label, serverName, langName);
+        }
     }
 
     public static final String PORTAL_URL = VieflixParser.PORTAL_URL;
