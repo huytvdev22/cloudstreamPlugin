@@ -29,32 +29,16 @@ class AnimeVietsubProvider : MainAPI() {
     override val hasMainPage = true
 
     companion object {
-        const val PORTAL_URL = AnimeVietsubLogic.PORTAL_URL
+        const val DEFAULT_DOMAIN = AnimeVietsubLogic.DEFAULT_BASE_URL
         private var cachedDomain: String? = null
         private val cookieMap = java.util.concurrent.ConcurrentHashMap<String, String>()
     }
 
     /**
-     * Tự động lấy domain đang hoạt động từ cache hoặc portal.
+     * Lấy domain đang hoạt động.
      */
-    private suspend fun getDomain(): String {
-        cachedDomain?.let { return it }
-
-        try {
-            val res = app.get(PORTAL_URL, timeout = 5)
-            extractCookies(res.okhttpResponse.headers)
-            val finalUrl = res.url
-            if (finalUrl.isNotEmpty() && finalUrl.startsWith("http")) {
-                val domain = finalUrl.trimEnd('/')
-                cachedDomain = domain
-                mainUrl = domain
-                return domain
-            }
-        } catch (e: Exception) {
-            extractCookiesFromException(e)
-        }
-
-        return mainUrl
+    private fun getDomain(): String {
+        return cachedDomain ?: DEFAULT_DOMAIN
     }
 
     private fun extractCookies(headers: okhttp3.Headers?) {
@@ -75,39 +59,31 @@ class AnimeVietsubProvider : MainAPI() {
         }
     }
 
-    private fun extractCookiesFromException(e: Exception) {
-        try {
-            val field = e.javaClass.getDeclaredField("response")
-            field.isAccessible = true
-            val resp = field.get(e) as? okhttp3.Response
-            extractCookies(resp?.headers)
-        } catch (_: Exception) {
-        }
-    }
-
     private fun getCookieHeader(): String {
         return cookieMap.entries.joinToString("; ") { "${it.key}=${it.value}" }
     }
 
-    private suspend fun ensureSession(domain: String) {
+    private fun ensureSession(domain: String) {
         if (cookieMap.isNotEmpty()) return
-        val headers = mapOf(
-            "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-            "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
-        )
         try {
-            val res = app.get("$domain/", headers = headers)
-            extractCookies(res.okhttpResponse.headers)
-        } catch (e: Exception) {
-            extractCookiesFromException(e)
+            val req = okhttp3.Request.Builder()
+                .url("$domain/")
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                .build()
+            val resp = app.baseClient.newCall(req).execute()
+            extractCookies(resp.headers)
+            resp.close()
+        } catch (_: Exception) {
         }
     }
 
     /**
-     * Gửi request HTTP an toàn với cơ chế bắt tay khởi tạo Cookie và tự động thử lại khi gặp 403.
+     * Gửi request HTTP an toàn với cơ chế bắt tay khởi tạo Cookie bằng OkHttp gốc chống 403.
      */
     private suspend fun fetchHtml(url: String, domain: String): String {
         ensureSession(domain)
+
         val headers = mutableMapOf(
             "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
             "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
@@ -124,16 +100,24 @@ class AnimeVietsubProvider : MainAPI() {
             extractCookies(res.okhttpResponse.headers)
             res.text
         } catch (e: Exception) {
-            extractCookiesFromException(e)
-            val retryCookie = getCookieHeader()
-            if (retryCookie.isNotEmpty()) {
-                headers["Cookie"] = retryCookie
-            }
+            // Thử lại trực tiếp qua OkHttp với Cookie đã lấy
             try {
-                val res2 = app.get(url, headers = headers)
-                extractCookies(res2.okhttpResponse.headers)
-                res2.text
-            } catch (ex: Exception) {
+                val req = okhttp3.Request.Builder()
+                    .url(url)
+                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+                    .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
+                    .header("Referer", "$domain/")
+                    .apply {
+                        val cookie = getCookieHeader()
+                        if (cookie.isNotEmpty()) header("Cookie", cookie)
+                    }
+                    .build()
+                val resp = app.baseClient.newCall(req).execute()
+                extractCookies(resp.headers)
+                val body = resp.body?.string() ?: ""
+                resp.close()
+                body
+            } catch (_: Exception) {
                 ""
             }
         }
