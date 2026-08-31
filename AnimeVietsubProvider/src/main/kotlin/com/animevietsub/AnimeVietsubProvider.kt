@@ -54,30 +54,41 @@ class AnimeVietsubProvider : MainAPI() {
         return mainUrl
     }
 
+    private var isSessionInitialized = false
+
+    private suspend fun ensureSession(domain: String) {
+        if (isSessionInitialized) return
+        try {
+            // Handshake với trang chủ để OkHttp tự động lưu Set-Cookie phiên làm việc
+            app.get(
+                "$domain/",
+                headers = mapOf(
+                    "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                    "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+                )
+            )
+        } catch (ignored: Exception) {
+        }
+        isSessionInitialized = true
+    }
+
     /**
      * Gửi request HTTP an toàn với cơ chế bắt tay khởi tạo Cookie và tự động thử lại khi gặp 403.
      */
     private suspend fun fetchHtml(url: String, domain: String): String {
+        ensureSession(domain)
         val headers = mapOf(
             "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
             "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-            "Accept-Language" to "vi,en-US;q=0.9,en;q=0.8"
+            "Accept-Language" to "vi,en-US;q=0.9,en;q=0.8",
+            "Referer" to "$domain/"
         )
         return try {
-            val res = app.get(url, referer = "$domain/", headers = headers)
-            if (res.code == 403 || res.text.length < 1000) {
-                // Handshake với trang chủ để lấy Set-Cookie rồi thử lại
-                try {
-                    app.get("$domain/", headers = headers)
-                } catch (ignored: Exception) {
-                }
-                app.get(url, referer = "$domain/", headers = headers).text
-            } else {
-                res.text
-            }
+            app.get(url, headers = headers).text
         } catch (e: Exception) {
             try {
-                app.get(url, referer = "$domain/", headers = headers).text
+                // Retry lại với cookie đã nhận
+                app.get(url, headers = headers).text
             } catch (ex: Exception) {
                 ""
             }
@@ -157,7 +168,7 @@ class AnimeVietsubProvider : MainAPI() {
 
         val badgeText = if (item.tags.isNotEmpty()) item.tags.joinToString(" • ") else null
 
-        return newAnimeSearchResponse(item.title, item.href, TvType.Anime) {
+        return newAnimeSearchResponse(item.title, item.href, TvType.Movie) {
             this.posterUrl = item.posterUrl
             if (badgeText != null) {
                 this.otherName = badgeText
