@@ -7,6 +7,8 @@ import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.loadExtractor
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import org.jsoup.Jsoup
 import java.util.EnumSet
@@ -16,7 +18,7 @@ import java.util.EnumSet
  *
  * Triển khai theo mô hình Hybrid Architecture:
  * 1. Khai báo metadata CloudStream (mainUrl, name, supportedTypes, ...)
- * 2. Tự động kiểm tra và chuẩn hóa domain đang hoạt động
+ * 2. Tự động khởi tạo và duy trì Cookie Session chống 403 trên Dispatchers.IO
  * 3. Gửi HTTP request lấy HTML
  * 4. Delegate toàn bộ logic parse sang [AnimeVietsubLogic] (Java)
  * 5. Chuyển kết quả từ Java bean sang kiểu dữ liệu CloudStream
@@ -24,7 +26,7 @@ import java.util.EnumSet
 class AnimeVietsubProvider : MainAPI() {
     override var mainUrl = AnimeVietsubLogic.DEFAULT_BASE_URL
     override var name = "AnimeVietsub"
-    override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime, TvType.AnimeMovie, TvType.OVA)
+    override val supportedTypes = setOf(TvType.Anime, TvType.AnimeMovie, TvType.OVA, TvType.Movie, TvType.TvSeries)
     override var lang = "vi"
     override val hasMainPage = true
 
@@ -43,16 +45,18 @@ class AnimeVietsubProvider : MainAPI() {
 
     private fun extractCookies(headers: okhttp3.Headers?) {
         if (headers == null) return
-        val setCookies = headers.values("set-cookie")
-        for (sc in setCookies) {
-            val parts = sc.split(";")
-            if (parts.isNotEmpty()) {
-                val kv = parts[0].split("=", limit = 2)
-                if (kv.size == 2) {
-                    val k = kv[0].trim()
-                    val v = kv[1].trim()
-                    if (k.isNotEmpty() && v.isNotEmpty()) {
-                        cookieMap[k] = v
+        for (i in 0 until headers.size) {
+            if (headers.name(i).equals("set-cookie", ignoreCase = true)) {
+                val sc = headers.value(i)
+                val parts = sc.split(";")
+                if (parts.isNotEmpty()) {
+                    val kv = parts[0].split("=", limit = 2)
+                    if (kv.size == 2) {
+                        val k = kv[0].trim()
+                        val v = kv[1].trim()
+                        if (k.isNotEmpty() && v.isNotEmpty()) {
+                            cookieMap[k] = v
+                        }
                     }
                 }
             }
@@ -63,63 +67,70 @@ class AnimeVietsubProvider : MainAPI() {
         return cookieMap.entries.joinToString("; ") { "${it.key}=${it.value}" }
     }
 
-    private fun ensureSession(domain: String) {
-        if (cookieMap.isNotEmpty()) return
-        try {
-            val req = okhttp3.Request.Builder()
-                .url("$domain/")
-                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
-                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-                .build()
-            val resp = app.baseClient.newCall(req).execute()
-            extractCookies(resp.headers)
-            resp.close()
-        } catch (_: Exception) {
-        }
-    }
-
     /**
-     * Gửi request HTTP an toàn với cơ chế bắt tay khởi tạo Cookie bằng OkHttp gốc chống 403.
+     * Gửi request HTTP an toàn trên Dispatchers.IO với cơ chế bắt tay khởi tạo Cookie bằng OkHttp gốc chống 403.
      */
-    private suspend fun fetchHtml(url: String, domain: String): String {
-        ensureSession(domain)
+    private suspend fun fetchHtml(url: String, domain: String): String = withContext(Dispatchers.IO) {
+        val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+        val accept = "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
 
-        val headers = mutableMapOf(
-            "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-            "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-            "Accept-Language" to "vi,en-US;q=0.9,en;q=0.8",
-            "Referer" to "$domain/"
-        )
-        val cHeader = getCookieHeader()
-        if (cHeader.isNotEmpty()) {
-            headers["Cookie"] = cHeader
+        // 1. Bắt tay lấy cookie nếu cookieMap đang rỗng
+        if (cookieMap.isEmpty()) {
+            try {
+                val initReq = okhttp3.Request.Builder()
+                    .url("$domain/")
+                    .header("User-Agent", userAgent)
+                    .header("Accept", accept)
+                    .build()
+                val initResp = app.baseClient.newCall(initReq).execute()
+                extractCookies(initResp.headers)
+                initResp.close()
+            } catch (_: Exception) {
+            }
         }
 
-        return try {
-            val res = app.get(url, headers = headers)
-            extractCookies(res.okhttpResponse.headers)
-            res.text
-        } catch (e: Exception) {
-            // Thử lại trực tiếp qua OkHttp với Cookie đã lấy
-            try {
-                val req = okhttp3.Request.Builder()
+        // 2. Gửi request lấy HTML bằng OkHttp với đầy đủ Cookie
+        try {
+            val reqBuilder = okhttp3.Request.Builder()
+                .url(url)
+                .header("User-Agent", userAgent)
+                .header("Accept", accept)
+                .header("Accept-Language", "vi,en-US;q=0.9,en;q=0.8")
+                .header("Referer", "$domain/")
+
+            val cHeader = getCookieHeader()
+            if (cHeader.isNotEmpty()) {
+                reqBuilder.header("Cookie", cHeader)
+            }
+
+            val resp = app.baseClient.newCall(reqBuilder.build()).execute()
+            extractCookies(resp.headers)
+
+            // Nếu gặp 403 (cookie được cấp mới tại response này), tự động retry lần 2 với cookie mới
+            if (resp.code == 403) {
+                resp.close()
+                val retryCookie = getCookieHeader()
+                val retryReq = okhttp3.Request.Builder()
                     .url(url)
-                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
-                    .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
+                    .header("User-Agent", userAgent)
+                    .header("Accept", accept)
                     .header("Referer", "$domain/")
                     .apply {
-                        val cookie = getCookieHeader()
-                        if (cookie.isNotEmpty()) header("Cookie", cookie)
+                        if (retryCookie.isNotEmpty()) header("Cookie", retryCookie)
                     }
                     .build()
-                val resp = app.baseClient.newCall(req).execute()
-                extractCookies(resp.headers)
-                val body = resp.body?.string() ?: ""
-                resp.close()
-                body
-            } catch (_: Exception) {
-                ""
+                val retryResp = app.baseClient.newCall(retryReq).execute()
+                extractCookies(retryResp.headers)
+                val body = retryResp.body?.string() ?: ""
+                retryResp.close()
+                return@withContext body
             }
+
+            val body = resp.body?.string() ?: ""
+            resp.close()
+            return@withContext body
+        } catch (_: Exception) {
+            return@withContext ""
         }
     }
 
@@ -199,7 +210,7 @@ class AnimeVietsubProvider : MainAPI() {
 
         val badgeText = if (item.tags.isNotEmpty()) item.tags.joinToString(" • ") else null
 
-        return newAnimeSearchResponse(item.title, item.href, TvType.Movie) {
+        return newAnimeSearchResponse(item.title, item.href, TvType.Anime) {
             this.posterUrl = item.posterUrl
             if (badgeText != null) {
                 this.otherName = badgeText
@@ -295,8 +306,6 @@ class AnimeVietsubProvider : MainAPI() {
         // 2. Trích xuất server dự phòng (HDX / Abyss Player) qua AJAX API
         try {
             val doc = Jsoup.parse(html)
-            val filmId = doc.selectFirst("input#error-film-id")?.attr("value")
-                ?: Regex("filmInfo\\.filmID\\s*=\\s*parseInt\\(['\"](\\d+)['\"]\\)").find(html)?.groupValues?.get(1)
             val episodeId = doc.selectFirst("input#error-episode-id")?.attr("value")
                 ?: Regex("filmInfo\\.episodeID\\s*=\\s*parseInt\\(['\"](\\d+)['\"]\\)").find(html)?.groupValues?.get(1)
 
@@ -345,7 +354,6 @@ class AnimeVietsubProvider : MainAPI() {
                                 val sJson = JSONObject(sRes)
                                 if (sJson.optInt("success", 0) == 1) {
                                     val streamUrl = sJson.optString("link", "")
-                                    val playTech = sJson.optString("playTech", "")
 
                                     if (streamUrl.isNotEmpty()) {
                                         if (streamUrl.contains(".m3u8")) {
