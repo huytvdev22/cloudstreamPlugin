@@ -109,15 +109,15 @@ public class AnimeVietsubParser implements MovieParser {
         if (html == null || html.trim().isEmpty()) return result;
 
         Document doc = Jsoup.parse(html, baseUrl);
-        Elements items = doc.select(".TPostMv, .item, .film-item, li:has(a[href*=/phim/])");
+        Elements items = doc.select(".TPostMv, .TPost, .item, .film-item, article, li:has(a[href*=/phim/]), a[href*=/phim/]");
         List<String> seenHrefs = new ArrayList<>();
 
         for (Element el : items) {
-            Element linkEl = el.selectFirst("a[href*=/phim/]");
+            Element linkEl = el.tagName().equalsIgnoreCase("a") ? el : el.selectFirst("a[href*=/phim/]");
             if (linkEl == null) continue;
 
             String rawHref = linkEl.attr("href").trim();
-            if (rawHref.isEmpty() || rawHref.contains("xem-phim") || rawHref.contains("/tap-")) continue;
+            if (rawHref.isEmpty() || rawHref.contains("xem-phim") || rawHref.contains("/tap-") || rawHref.contains("/account/")) continue;
 
             String href = normalizeUrl(rawHref, baseUrl);
             if (seenHrefs.contains(href)) continue;
@@ -125,10 +125,10 @@ public class AnimeVietsubParser implements MovieParser {
 
             // Tiêu đề
             String title = "";
-            Element titleEl = el.selectFirst(".Title, .title, .name, h2, h3");
+            Element titleEl = el.selectFirst(".Title, .title, .name, h2, h3, h4");
             if (titleEl != null && !titleEl.text().trim().isEmpty()) {
                 title = titleEl.text().trim();
-            } else if (!linkEl.attr("title").trim().isEmpty()) {
+            } else if (linkEl.hasAttr("title") && !linkEl.attr("title").trim().isEmpty()) {
                 title = linkEl.attr("title").trim();
             }
             if (title.isEmpty()) continue;

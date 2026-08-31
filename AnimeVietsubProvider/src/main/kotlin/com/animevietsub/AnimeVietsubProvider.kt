@@ -23,12 +23,12 @@ import java.util.EnumSet
  */
 class AnimeVietsubProvider : MainAPI() {
     override var mainUrl = AnimeVietsubLogic.DEFAULT_BASE_URL
-    override var name = "AnimeVietsub"
-    override val supportedTypes = setOf(TvType.Anime, TvType.AnimeMovie, TvType.OVA, TvType.Movie, TvType.TvSeries)
-    override var lang = "vi"
-    override val hasMainPage = true
+        override var name = "AnimeVietsub"
+        override val supportedTypes = setOf(TvType.Anime, TvType.AnimeMovie, TvType.OVA, TvType.Movie, TvType.TvSeries)
+        override var lang = "vi"
+        override val hasMainPage = true
 
-    companion object {
+        companion object {
         const val PORTAL_URL = AnimeVietsubLogic.PORTAL_URL
         private var cachedDomain: String? = null
     }
@@ -52,6 +52,36 @@ class AnimeVietsubProvider : MainAPI() {
         }
 
         return mainUrl
+    }
+
+    /**
+     * Gửi request HTTP an toàn với cơ chế bắt tay khởi tạo Cookie và tự động thử lại khi gặp 403.
+     */
+    private suspend fun fetchHtml(url: String, domain: String): String {
+        val headers = mapOf(
+            "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept-Language" to "vi,en-US;q=0.9,en;q=0.8"
+        )
+        return try {
+            val res = app.get(url, referer = "$domain/", headers = headers)
+            if (res.code == 403 || res.text.length < 1000) {
+                // Handshake với trang chủ để lấy Set-Cookie rồi thử lại
+                try {
+                    app.get("$domain/", headers = headers)
+                } catch (ignored: Exception) {
+                }
+                app.get(url, referer = "$domain/", headers = headers).text
+            } else {
+                res.text
+            }
+        } catch (e: Exception) {
+            try {
+                app.get(url, referer = "$domain/", headers = headers).text
+            } catch (ex: Exception) {
+                ""
+            }
+        }
     }
 
     // ==========================================
@@ -93,7 +123,7 @@ class AnimeVietsubProvider : MainAPI() {
             cleanPath
         }
 
-        val html = app.get(url, referer = domain).text
+        val html = fetchHtml(url, domain)
         val items = AnimeVietsubLogic.parseMovieList(html, domain).mapNotNull { item ->
             toSearchResponse(item)
         }
@@ -108,7 +138,7 @@ class AnimeVietsubProvider : MainAPI() {
     override suspend fun search(query: String, page: Int): SearchResponseList {
         val domain = getDomain()
         val searchUrl = AnimeVietsubLogic.buildSearchUrl(domain, query, page)
-        val html = app.get(searchUrl, referer = domain).text
+        val html = fetchHtml(searchUrl, domain)
 
         val items = AnimeVietsubLogic.parseMovieList(html, domain).mapNotNull { item ->
             toSearchResponse(item)
@@ -149,7 +179,7 @@ class AnimeVietsubProvider : MainAPI() {
     override suspend fun load(url: String): LoadResponse {
         val domain = getDomain()
         val targetUrl = AnimeVietsubLogic.normalizeUrl(url, domain)
-        val html = app.get(targetUrl, referer = domain).text
+        val html = fetchHtml(targetUrl, domain)
 
         val detail = AnimeVietsubLogic.parseMovieDetail(html, domain)
 
@@ -196,7 +226,7 @@ class AnimeVietsubProvider : MainAPI() {
     ): Boolean {
         val domain = getDomain()
         val watchUrl = AnimeVietsubLogic.normalizeUrl(data, domain)
-        val html = app.get(watchUrl, referer = domain).text
+        val html = fetchHtml(watchUrl, domain)
 
         // 1. Trích xuất link từ script window.PLAYER_DATA hoặc M3U8 trực tiếp
         val videoLinks = AnimeVietsubLogic.extractVideoLinks(html, watchUrl)
