@@ -24,7 +24,7 @@ import java.util.EnumSet
 class AnimeVietsubProvider : MainAPI() {
     override var mainUrl = AnimeVietsubLogic.DEFAULT_BASE_URL
     override var name = "AnimeVietsub"
-    override val supportedTypes = setOf(TvType.Anime, TvType.AnimeMovie, TvType.OVA)
+    override val supportedTypes = setOf(TvType.Anime, TvType.AnimeMovie, TvType.OVA, TvType.Movie, TvType.TvSeries)
     override var lang = "vi"
     override val hasMainPage = true
 
