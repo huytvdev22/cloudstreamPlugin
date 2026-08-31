@@ -205,7 +205,7 @@ class AnimeVietsubProvider : MainAPI() {
                 VideoLink.TYPE_M3U8 -> {
                     callback.invoke(
                         ExtractorLink(
-                            source = link.serverName ?: name,
+                            source = name,
                             name = link.label ?: "M3U8 Fast",
                             url = link.url,
                             referer = domain,
@@ -215,9 +215,7 @@ class AnimeVietsubProvider : MainAPI() {
                     )
                 }
                 VideoLink.TYPE_EMBED -> {
-                    loadExtractor(link.url, domain, subtitleCallback) { extractedLink ->
-                        callback.invoke(extractedLink)
-                    }
+                    loadExtractor(link.url, domain, subtitleCallback, callback)
                 }
             }
         }
@@ -281,7 +279,7 @@ class AnimeVietsubProvider : MainAPI() {
                                         if (streamUrl.contains(".m3u8")) {
                                             callback.invoke(
                                                 ExtractorLink(
-                                                    source = "Server $serverTitle",
+                                                    source = name,
                                                     name = "$serverTitle (M3U8)",
                                                     url = streamUrl,
                                                     referer = domain,
@@ -290,9 +288,7 @@ class AnimeVietsubProvider : MainAPI() {
                                                 )
                                             )
                                         } else {
-                                            loadExtractor(streamUrl, domain, subtitleCallback) { extractedLink ->
-                                                callback.invoke(extractedLink)
-                                            }
+                                            loadExtractor(streamUrl, domain, subtitleCallback, callback)
                                         }
                                     }
                                 }

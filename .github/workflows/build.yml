@@ -51,14 +51,19 @@ jobs:
         run: |
           cd $GITHUB_WORKSPACE/src
           if [ -d "JavaRunTest/src/main/java" ]; then
-            mkdir -p VieflixProvider/src/main/java
-            cp -rf JavaRunTest/src/main/java/* VieflixProvider/src/main/java/
+            for dir in *Provider; do
+              if [ -d "$dir" ]; then
+                mkdir -p "$dir/src/main/java"
+                cp -rf JavaRunTest/src/main/java/* "$dir/src/main/java/"
+              fi
+            done
           fi
           chmod +x gradlew
           ./gradlew make makePluginsJson
-          cp **/build/*.cs3 $GITHUB_WORKSPACE/builds
-          cp build/plugins.json $GITHUB_WORKSPACE/builds
-          cp repo.json $GITHUB_WORKSPACE/builds || true
+          mkdir -p $GITHUB_WORKSPACE/builds
+          find . -type f -name "*.cs3" -exec cp -f {} $GITHUB_WORKSPACE/builds/ \;
+          cp -f build/plugins.json $GITHUB_WORKSPACE/builds/
+          cp -f repo.json $GITHUB_WORKSPACE/builds/ || true
 
       - name: Push builds
         run: |
