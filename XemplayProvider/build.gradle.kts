@@ -18,8 +18,8 @@ fun getBuildDate(): String {
     return formatter.format(Date())
 }
 
-// Cấu hình Build cho XemPlay Plugin
-version = 1
+// Cấu hình Build cho Xemplay Plugin
+version = 2
 
 cloudstream {
     description = "Nguồn xem phim chất lượng cao từ XemPlay (Phiên bản: 1.0.0 - Build: ${getGitHash()} - Ngày: ${getBuildDate()})"

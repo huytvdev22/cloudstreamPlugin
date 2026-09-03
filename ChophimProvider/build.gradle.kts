@@ -19,7 +19,7 @@ fun getBuildDate(): String {
 }
 
 // Cấu hình Build cho ChoPhim Plugin
-version = 1
+version = 2
 
 cloudstream {
     description = "Nguồn xem phim Chợ Phim - Trăm phim một chợ (Phiên bản: 1.0.0 - Build: ${getGitHash()} - Ngày: ${getBuildDate()})"

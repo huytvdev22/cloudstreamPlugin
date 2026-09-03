@@ -18,8 +18,8 @@ fun getBuildDate(): String {
     return formatter.format(Date())
 }
 
-// Build configuration for AnimeVietsub Plugin
-version = 8
+// Cấu hình Build cho AnimeVietsub Plugin
+version = 9
 
 cloudstream {
     description = "Xem Anime Vietsub chất lượng cao trực tuyến (Phiên bản: 1.0.0 - Build: ${getGitHash()} - Ngày: ${getBuildDate()})"

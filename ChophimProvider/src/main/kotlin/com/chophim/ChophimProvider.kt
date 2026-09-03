@@ -20,6 +20,7 @@ class ChophimProvider : MainAPI() {
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime)
     override var lang = "vi"
     override val hasMainPage = true
+    override val hasQuickSearch = true
 
     // ==========================================
     // 1. CẤU HÌNH DANH MỤC TRANG CHỦ
@@ -91,6 +92,10 @@ class ChophimProvider : MainAPI() {
 
     override suspend fun search(query: String): List<SearchResponse> {
         return search(query, 1).items
+    }
+
+    override suspend fun quickSearch(query: String): List<SearchResponse> {
+        return search(query)
     }
 
     /**
