@@ -7,8 +7,6 @@ import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.loadExtractor
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import org.jsoup.Jsoup
 import java.util.EnumSet
@@ -68,9 +66,9 @@ class AnimeVietsubProvider : MainAPI() {
     }
 
     /**
-     * Gửi request HTTP an toàn trên Dispatchers.IO với cơ chế bắt tay khởi tạo Cookie bằng OkHttp gốc chống 403.
+     * Gửi request HTTP an toàn với cơ chế bắt tay khởi tạo Cookie bằng OkHttp gốc chống 403.
      */
-    private suspend fun fetchHtml(url: String, domain: String): String = withContext(Dispatchers.IO) {
+    private suspend fun fetchHtml(url: String, domain: String): String {
         val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
         val accept = "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
 
@@ -90,7 +88,7 @@ class AnimeVietsubProvider : MainAPI() {
         }
 
         // 2. Gửi request lấy HTML bằng OkHttp với đầy đủ Cookie
-        try {
+        return try {
             val reqBuilder = okhttp3.Request.Builder()
                 .url(url)
                 .header("User-Agent", userAgent)
@@ -123,14 +121,14 @@ class AnimeVietsubProvider : MainAPI() {
                 extractCookies(retryResp.headers)
                 val body = retryResp.body?.string() ?: ""
                 retryResp.close()
-                return@withContext body
+                body
+            } else {
+                val body = resp.body?.string() ?: ""
+                resp.close()
+                body
             }
-
-            val body = resp.body?.string() ?: ""
-            resp.close()
-            return@withContext body
         } catch (_: Exception) {
-            return@withContext ""
+            ""
         }
     }
 
@@ -141,7 +139,7 @@ class AnimeVietsubProvider : MainAPI() {
         url: String,
         params: Map<String, String>,
         referer: String
-    ): String = withContext(Dispatchers.IO) {
+    ): String {
         val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
         val formBodyBuilder = okhttp3.FormBody.Builder()
         for ((k, v) in params) {
@@ -161,7 +159,7 @@ class AnimeVietsubProvider : MainAPI() {
             reqBuilder.header("Cookie", cHeader)
         }
 
-        try {
+        return try {
             val resp = app.baseClient.newCall(reqBuilder.build()).execute()
             extractCookies(resp.headers)
 
@@ -182,14 +180,14 @@ class AnimeVietsubProvider : MainAPI() {
                 extractCookies(retryResp.headers)
                 val body = retryResp.body?.string() ?: ""
                 retryResp.close()
-                return@withContext body
+                body
+            } else {
+                val body = resp.body?.string() ?: ""
+                resp.close()
+                body
             }
-
-            val body = resp.body?.string() ?: ""
-            resp.close()
-            return@withContext body
         } catch (_: Exception) {
-            return@withContext ""
+            ""
         }
     }
 
