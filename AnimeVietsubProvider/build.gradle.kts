@@ -19,7 +19,7 @@ fun getBuildDate(): String {
 }
 
 // Cấu hình Build cho AnimeVietsub Plugin
-version = 10
+version = 11
 
 cloudstream {
     description = "Xem Anime Vietsub chất lượng cao trực tuyến (Phiên bản: 1.0.0 - Build: ${getGitHash()} - Ngày: ${getBuildDate()})"

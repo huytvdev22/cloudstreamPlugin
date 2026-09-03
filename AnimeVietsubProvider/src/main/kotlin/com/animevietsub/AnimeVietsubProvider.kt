@@ -7,7 +7,6 @@ import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.loadExtractor
-import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
 import org.jsoup.Jsoup
 import java.util.EnumSet
@@ -376,127 +375,124 @@ class AnimeVietsubProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        // Giới hạn tổng thời gian lấy link tối đa là 8s (thay vì 60s gây CONNECTION_TIMEOUT)
-        return withTimeoutOrNull(8000L) {
-            val domain = getDomain()
-            val watchUrl = AnimeVietsubLogic.normalizeUrl(data, domain)
-            val html = fetchHtml(watchUrl, domain)
+        val domain = getDomain()
+        val watchUrl = AnimeVietsubLogic.normalizeUrl(data, domain)
+        val html = fetchHtml(watchUrl, domain)
 
-            var hasValidLink = false
+        var hasValidLink = false
 
-            // 1. Trích xuất server chính từ window.PLAYER_DATA
-            var episodeIdFromData: String? = null
-            val pDataJson = Regex("""window\.PLAYER_DATA\s*=\s*(\{[^;]+?\});""").find(html)?.groupValues?.get(1)
-            if (pDataJson != null) {
-                try {
-                    val pObj = JSONObject(pDataJson)
-                    val playerUrl = pObj.optString("link", "")
-                    episodeIdFromData = pObj.optString("episode_id", "").ifEmpty { null }
+        // 1. Trích xuất server chính từ window.PLAYER_DATA
+        var episodeIdFromData: String? = null
+        val pDataJson = Regex("""window\.PLAYER_DATA\s*=\s*(\{[^;]+?\});""").find(html)?.groupValues?.get(1)
+        if (pDataJson != null) {
+            try {
+                val pObj = JSONObject(pDataJson)
+                val playerUrl = pObj.optString("link", "")
+                episodeIdFromData = pObj.optString("episode_id", "").ifEmpty { null }
 
-                    if (playerUrl.isNotEmpty()) {
-                        if (playerUrl.contains(".m3u8")) {
-                            callback.invoke(
-                                ExtractorLink(
-                                    source = name,
-                                    name = "AnimeVietsub Direct (M3U8)",
-                                    url = playerUrl,
-                                    referer = domain,
-                                    quality = Qualities.P1080.value,
-                                    type = ExtractorLinkType.M3U8
-                                )
+                if (playerUrl.isNotEmpty()) {
+                    if (playerUrl.contains(".m3u8")) {
+                        callback.invoke(
+                            ExtractorLink(
+                                source = name,
+                                name = "AnimeVietsub Direct (M3U8)",
+                                url = playerUrl,
+                                referer = domain,
+                                quality = Qualities.P1080.value,
+                                type = ExtractorLinkType.M3U8
                             )
-                            hasValidLink = true
-                        } else if (!playerUrl.contains("storage.googleapiscdn.com")) {
-                            // Gọi extractor an toàn với timeout 3s cho các host ngoài khác
-                            withTimeoutOrNull(3000L) {
-                                val loaded = loadExtractor(playerUrl, domain, subtitleCallback, callback)
-                                if (loaded) hasValidLink = true
-                            }
+                        )
+                        hasValidLink = true
+                    } else if (!playerUrl.contains("storage.googleapiscdn.com")) {
+                        try {
+                            val loaded = loadExtractor(playerUrl, domain, subtitleCallback, callback)
+                            if (loaded) hasValidLink = true
+                        } catch (_: Exception) {
                         }
                     }
-                } catch (_: Exception) {
                 }
+            } catch (_: Exception) {
             }
+        }
 
-            // 2. Trích xuất server dự phòng (HDX / Abyss / FB / VIP...) qua AJAX API
-            try {
-                val doc = Jsoup.parse(html)
-                val episodeId = episodeIdFromData
-                    ?: doc.selectFirst("input#error-episode-id")?.attr("value")
-                    ?: Regex("""filmInfo\.episodeID\s*=\s*parseInt\(['"](\d+)['"]\)""").find(html)?.groupValues?.get(1)
-                    ?: Regex("""data-id="(\d+)"""").find(html)?.groupValues?.get(1)
+        // 2. Trích xuất server dự phòng (HDX / Abyss / FB / VIP...) qua AJAX API
+        try {
+            val doc = Jsoup.parse(html)
+            val episodeId = episodeIdFromData
+                ?: doc.selectFirst("input#error-episode-id")?.attr("value")
+                ?: Regex("""filmInfo\.episodeID\s*=\s*parseInt\(['"](\d+)['"]\)""").find(html)?.groupValues?.get(1)
+                ?: Regex("""data-id="(\d+)"""").find(html)?.groupValues?.get(1)
 
-                if (!episodeId.isNullOrBlank()) {
-                    val ajaxUrl = "$domain/ajax/player"
-                    val backupRes = postAjaxWithCookie(
-                        ajaxUrl,
-                        mapOf("episodeId" to episodeId, "backup" to "1"),
-                        watchUrl
-                    )
+            if (!episodeId.isNullOrBlank()) {
+                val ajaxUrl = "$domain/ajax/player"
+                val backupRes = postAjaxWithCookie(
+                    ajaxUrl,
+                    mapOf("episodeId" to episodeId, "backup" to "1"),
+                    watchUrl
+                )
 
-                    if (backupRes.isNotEmpty()) {
-                        val backupJson = JSONObject(backupRes)
-                        if (backupJson.optInt("success", 0) == 1) {
-                            val backupHtml = backupJson.optString("html", "")
-                            val backupDoc = Jsoup.parse(backupHtml)
-                            val serverButtons = backupDoc.select("a[data-href]")
+                if (backupRes.isNotEmpty()) {
+                    val backupJson = JSONObject(backupRes)
+                    if (backupJson.optInt("success", 0) == 1) {
+                        val backupHtml = backupJson.optString("html", "")
+                        val backupDoc = Jsoup.parse(backupHtml)
+                        val serverButtons = backupDoc.select("a[data-href]")
 
-                            for (btn in serverButtons) {
-                                val dataHref = btn.attr("data-href")
-                                val dataPlay = btn.attr("data-play")
-                                val dataId = btn.attr("data-id")
-                                val serverTitle = btn.text().trim().ifEmpty { "Server $dataId" }
+                        for (btn in serverButtons) {
+                            val dataHref = btn.attr("data-href")
+                            val dataPlay = btn.attr("data-play")
+                            val dataId = btn.attr("data-id")
+                            val serverTitle = btn.text().trim().ifEmpty { "Server $dataId" }
 
-                                if (dataHref.isNotEmpty() && dataId != "0") {
-                                    try {
-                                        val sRes = postAjaxWithCookie(
-                                            ajaxUrl,
-                                            mapOf(
-                                                "link" to dataHref,
-                                                "play" to dataPlay,
-                                                "id" to dataId,
-                                                "backuplinks" to "1"
-                                            ),
-                                            watchUrl
-                                        )
+                            if (dataHref.isNotEmpty() && dataId != "0") {
+                                try {
+                                    val sRes = postAjaxWithCookie(
+                                        ajaxUrl,
+                                        mapOf(
+                                            "link" to dataHref,
+                                            "play" to dataPlay,
+                                            "id" to dataId,
+                                            "backuplinks" to "1"
+                                        ),
+                                        watchUrl
+                                    )
 
-                                        if (sRes.isNotEmpty()) {
-                                            val sJson = JSONObject(sRes)
-                                            if (sJson.optInt("success", 0) == 1) {
-                                                val streamUrl = sJson.optString("link", "")
-                                                if (streamUrl.isNotEmpty() && streamUrl != "null") {
-                                                    // Kiểm tra nếu domain thuộc danh sách chết/bị chặn tại VN thì bỏ qua ngay lập tức
-                                                    val isBlocked = BLOCKED_STREAM_DOMAINS.any { blocked ->
-                                                        streamUrl.contains(blocked, ignoreCase = true)
-                                                    }
-                                                    if (isBlocked) {
-                                                        continue
-                                                    }
+                                    if (sRes.isNotEmpty()) {
+                                        val sJson = JSONObject(sRes)
+                                        if (sJson.optInt("success", 0) == 1) {
+                                            val streamUrl = sJson.optString("link", "")
+                                            if (streamUrl.isNotEmpty() && streamUrl != "null") {
+                                                // Kiểm tra nếu domain thuộc danh sách chết/bị chặn tại VN thì bỏ qua ngay lập tức
+                                                val isBlocked = BLOCKED_STREAM_DOMAINS.any { blocked ->
+                                                    streamUrl.contains(blocked, ignoreCase = true)
+                                                }
+                                                if (isBlocked) {
+                                                    continue
+                                                }
 
-                                                    if (streamUrl.contains(".m3u8")) {
-                                                        callback.invoke(
-                                                            ExtractorLink(
-                                                                source = name,
-                                                                name = "$serverTitle (M3U8)",
-                                                                url = streamUrl,
-                                                                referer = domain,
-                                                                quality = Qualities.P1080.value,
-                                                                type = ExtractorLinkType.M3U8
-                                                            )
+                                                if (streamUrl.contains(".m3u8")) {
+                                                    callback.invoke(
+                                                        ExtractorLink(
+                                                            source = name,
+                                                            name = "$serverTitle (M3U8)",
+                                                            url = streamUrl,
+                                                            referer = domain,
+                                                            quality = Qualities.P1080.value,
+                                                            type = ExtractorLinkType.M3U8
                                                         )
-                                                        hasValidLink = true
-                                                    } else {
-                                                        // Giới hạn thời gian kết nối extractor của host dự phòng tối đa 3.5s
-                                                        withTimeoutOrNull(3500L) {
-                                                            val loaded = loadExtractor(streamUrl, domain, subtitleCallback, callback)
-                                                            if (loaded) hasValidLink = true
-                                                        }
+                                                    )
+                                                    hasValidLink = true
+                                                } else {
+                                                    try {
+                                                        val loaded = loadExtractor(streamUrl, domain, subtitleCallback, callback)
+                                                        if (loaded) hasValidLink = true
+                                                    } catch (_: Exception) {
                                                     }
                                                 }
                                             }
                                         }
-                                    } catch (_: Exception) {
                                     }
+                                } catch (_: Exception) {
                                 }
                             }
                         }
@@ -505,7 +501,6 @@ class AnimeVietsubProvider : MainAPI() {
             } catch (_: Exception) {
             }
 
-            hasValidLink
-        } ?: false
+        return hasValidLink
     }
 }
