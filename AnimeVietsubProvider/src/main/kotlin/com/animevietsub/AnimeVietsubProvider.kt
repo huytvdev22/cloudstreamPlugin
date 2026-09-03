@@ -498,8 +498,9 @@ class AnimeVietsubProvider : MainAPI() {
                         }
                     }
                 }
-            } catch (_: Exception) {
             }
+        } catch (_: Exception) {
+        }
 
         return hasValidLink
     }
