@@ -218,15 +218,25 @@ public class AnimeVietsubParser implements MovieParser {
         return new MovieDetail(title, posterUrl, plot, year, duration, tags, episodes);
     }
 
+    /**
+     * Bóc tách toàn bộ danh sách tập từ HTML (hỗ trợ cả trang chi tiết và trang xem-phim.html).
+     */
+    public List<EpisodeItem> parseEpisodes(String html, String baseUrl) {
+        if (html == null || html.trim().isEmpty()) return new ArrayList<>();
+        Document doc = Jsoup.parse(html, baseUrl);
+        return parseEpisodes(doc, html, baseUrl);
+    }
+
     private List<EpisodeItem> parseEpisodes(Document doc, String rawHtml, String baseUrl) {
         List<EpisodeItem> episodes = new ArrayList<>();
         List<String> seenHrefs = new ArrayList<>();
 
-        Elements epElements = doc.select("a[href*=/tap-], a.btn-episode, .list-episode a");
+        // Ưu tiên các khối danh sách tập chuẩn trên trang xem phim và trang chi tiết
+        Elements epElements = doc.select(".server-group .list-episode a[href*=/tap-], .list-episode a[href*=/tap-], a.btn-episode[href*=/tap-], a[href*=/tap-]");
         int index = 1;
         for (Element ep : epElements) {
             String rawHref = ep.attr("href").trim();
-            if (rawHref.isEmpty() || rawHref.contains("account/login")) continue;
+            if (rawHref.isEmpty() || rawHref.contains("account/login") || rawHref.contains("xem-phim.html")) continue;
 
             String href = normalizeUrl(rawHref, baseUrl);
             if (seenHrefs.contains(href)) continue;
@@ -247,9 +257,9 @@ public class AnimeVietsubParser implements MovieParser {
             index++;
         }
 
-        // Fallback: nếu trang chi tiết chưa có danh sách tập nhưng có nút "Xem Phim"
+        // Fallback: nếu chưa có danh sách tập nhưng có nút "Xem Phim"
         if (episodes.isEmpty()) {
-            Element watchBtn = doc.selectFirst("a[href*=/xem-phim], a[href*=/tap-]");
+            Element watchBtn = doc.selectFirst("a.btn-see, a[href*=/xem-phim], a[href*=/tap-]");
             if (watchBtn != null) {
                 String href = normalizeUrl(watchBtn.attr("href").trim(), baseUrl);
                 episodes.add(new EpisodeItem(href, "Tập 1", 1));

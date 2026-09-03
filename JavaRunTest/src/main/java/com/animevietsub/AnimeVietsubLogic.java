@@ -41,6 +41,10 @@ public class AnimeVietsubLogic {
         return AnimeVietsubParser.getInstance().parseMovieDetail(html, baseUrl);
     }
 
+    public static List<EpisodeItem> parseEpisodes(String html, String baseUrl) {
+        return AnimeVietsubParser.getInstance().parseEpisodes(html, baseUrl);
+    }
+
     public static List<VideoLink> extractVideoLinks(String html, String slugOrData) {
         return AnimeVietsubParser.getInstance().extractVideoLinks(html, slugOrData);
     }

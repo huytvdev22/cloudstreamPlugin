@@ -134,6 +134,65 @@ class AnimeVietsubProvider : MainAPI() {
         }
     }
 
+    /**
+     * Gửi request POST tới AJAX endpoint kèm Cookie session để chống Cloudflare 403.
+     */
+    private suspend fun postAjaxWithCookie(
+        url: String,
+        params: Map<String, String>,
+        referer: String
+    ): String = withContext(Dispatchers.IO) {
+        val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+        val formBodyBuilder = okhttp3.FormBody.Builder()
+        for ((k, v) in params) {
+            formBodyBuilder.add(k, v)
+        }
+        val formBody = formBodyBuilder.build()
+
+        val reqBuilder = okhttp3.Request.Builder()
+            .url(url)
+            .post(formBody)
+            .header("User-Agent", userAgent)
+            .header("X-Requested-With", "XMLHttpRequest")
+            .header("Referer", referer)
+
+        val cHeader = getCookieHeader()
+        if (cHeader.isNotEmpty()) {
+            reqBuilder.header("Cookie", cHeader)
+        }
+
+        try {
+            val resp = app.baseClient.newCall(reqBuilder.build()).execute()
+            extractCookies(resp.headers)
+
+            if (resp.code == 403) {
+                resp.close()
+                val retryCookie = getCookieHeader()
+                val retryReq = okhttp3.Request.Builder()
+                    .url(url)
+                    .post(formBody)
+                    .header("User-Agent", userAgent)
+                    .header("X-Requested-With", "XMLHttpRequest")
+                    .header("Referer", referer)
+                    .apply {
+                        if (retryCookie.isNotEmpty()) header("Cookie", retryCookie)
+                    }
+                    .build()
+                val retryResp = app.baseClient.newCall(retryReq).execute()
+                extractCookies(retryResp.headers)
+                val body = retryResp.body?.string() ?: ""
+                retryResp.close()
+                return@withContext body
+            }
+
+            val body = resp.body?.string() ?: ""
+            resp.close()
+            return@withContext body
+        } catch (_: Exception) {
+            return@withContext ""
+        }
+    }
+
     // ==========================================
     // 1. CẤU HÌNH MỤC TRANG CHỦ
     // ==========================================
@@ -236,7 +295,25 @@ class AnimeVietsubProvider : MainAPI() {
 
         val detail = AnimeVietsubLogic.parseMovieDetail(html, domain)
 
-        val episodesList = detail.episodes.map { ep ->
+        // Tự động kiểm tra và lấy danh sách tập đầy đủ từ trang xem-phim.html nếu số tập bị thiếu (<= 3)
+        var fullEpisodes = detail.episodes
+        if (fullEpisodes.size <= 3 || !targetUrl.contains("xem-phim.html")) {
+            val watchUrl = if (targetUrl.endsWith("/xem-phim.html")) {
+                targetUrl
+            } else {
+                "${targetUrl.trimEnd('/')}/xem-phim.html"
+            }
+            try {
+                val watchHtml = fetchHtml(watchUrl, domain)
+                val episodesFromWatch = AnimeVietsubLogic.parseEpisodes(watchHtml, domain)
+                if (episodesFromWatch.isNotEmpty() && episodesFromWatch.size > fullEpisodes.size) {
+                    fullEpisodes = episodesFromWatch
+                }
+            } catch (_: Exception) {
+            }
+        }
+
+        val episodesList = fullEpisodes.map { ep ->
             newEpisode(ep.href) {
                 this.name = ep.name
                 this.episode = ep.episodeNum
@@ -281,106 +358,139 @@ class AnimeVietsubProvider : MainAPI() {
         val watchUrl = AnimeVietsubLogic.normalizeUrl(data, domain)
         val html = fetchHtml(watchUrl, domain)
 
-        // 1. Trích xuất link từ script window.PLAYER_DATA hoặc M3U8 trực tiếp
-        val videoLinks = AnimeVietsubLogic.extractVideoLinks(html, watchUrl)
-        for (link in videoLinks) {
-            when (link.type) {
-                VideoLink.TYPE_M3U8 -> {
-                    callback.invoke(
-                        ExtractorLink(
-                            source = name,
-                            name = link.label ?: "M3U8 Fast",
-                            url = link.url,
-                            referer = domain,
-                            quality = Qualities.P1080.value,
-                            type = ExtractorLinkType.M3U8
+        var hasValidLink = false
+
+        // 1. Trích xuất server chính từ window.PLAYER_DATA
+        var episodeIdFromData: String? = null
+        val pDataJson = Regex("""window\.PLAYER_DATA\s*=\s*(\{[^;]+?\});""").find(html)?.groupValues?.get(1)
+        if (pDataJson != null) {
+            try {
+                val pObj = JSONObject(pDataJson)
+                val playerUrl = pObj.optString("link", "")
+                episodeIdFromData = pObj.optString("episode_id", "").ifEmpty { null }
+
+                if (playerUrl.isNotEmpty()) {
+                    if (playerUrl.contains(".m3u8")) {
+                        callback.invoke(
+                            ExtractorLink(
+                                source = name,
+                                name = "AnimeVietsub Direct (M3U8)",
+                                url = playerUrl,
+                                referer = domain,
+                                quality = Qualities.P1080.value,
+                                type = ExtractorLinkType.M3U8
+                            )
                         )
-                    )
+                        hasValidLink = true
+                    } else if (playerUrl.contains("storage.googleapiscdn.com")) {
+                        // Trích xuất playlist m3u8 từ player embed của AnimeVietsub
+                        try {
+                            val embedHtml = fetchHtml(playerUrl, domain)
+                            val idMatch = Regex("""const\s+id\s*=\s*"([^"]+)";""").find(embedHtml)
+                            val tokenMatch = Regex("""const\s+avsToken\s*=\s*"([^"]+)";""").find(embedHtml)
+                            if (idMatch != null && tokenMatch != null) {
+                                val streamId = idMatch.groupValues[1]
+                                val streamToken = tokenMatch.groupValues[1]
+                                val m3u8Url = "https://storage.googleapiscdn.com/playlist/$streamId/playlist.m3u8?token=$streamToken"
+                                callback.invoke(
+                                    ExtractorLink(
+                                        source = "Server DU (Chính)",
+                                        name = "DU Fast (1080p)",
+                                        url = m3u8Url,
+                                        referer = "https://storage.googleapiscdn.com/",
+                                        quality = Qualities.P1080.value,
+                                        type = ExtractorLinkType.M3U8
+                                    )
+                                )
+                                hasValidLink = true
+                            }
+                        } catch (_: Exception) {
+                        }
+                    } else {
+                        val loaded = loadExtractor(playerUrl, domain, subtitleCallback, callback)
+                        if (loaded) hasValidLink = true
+                    }
                 }
-                VideoLink.TYPE_EMBED -> {
-                    loadExtractor(link.url, domain, subtitleCallback, callback)
-                }
+            } catch (_: Exception) {
             }
         }
 
-        // 2. Trích xuất server dự phòng (HDX / Abyss Player) qua AJAX API
+        // 2. Trích xuất server dự phòng (HDX / Abyss / FB / VIP...) qua AJAX API CÓ KÈM COOKIE SESSION
         try {
             val doc = Jsoup.parse(html)
-            val episodeId = doc.selectFirst("input#error-episode-id")?.attr("value")
-                ?: Regex("filmInfo\\.episodeID\\s*=\\s*parseInt\\(['\"](\\d+)['\"]\\)").find(html)?.groupValues?.get(1)
+            val episodeId = episodeIdFromData
+                ?: doc.selectFirst("input#error-episode-id")?.attr("value")
+                ?: Regex("""filmInfo\.episodeID\s*=\s*parseInt\(['"](\d+)['"]\)""").find(html)?.groupValues?.get(1)
+                ?: Regex("""data-id="(\d+)"""").find(html)?.groupValues?.get(1)
 
             if (!episodeId.isNullOrBlank()) {
                 val ajaxUrl = "$domain/ajax/player"
-                val backupRes = app.post(
+                val backupRes = postAjaxWithCookie(
                     ajaxUrl,
-                    headers = mapOf(
-                        "X-Requested-With" to "XMLHttpRequest",
-                        "Referer" to watchUrl
-                    ),
-                    data = mapOf(
-                        "episodeId" to episodeId,
-                        "backup" to "1"
-                    )
-                ).text
+                    mapOf("episodeId" to episodeId, "backup" to "1"),
+                    watchUrl
+                )
 
-                val backupJson = JSONObject(backupRes)
-                if (backupJson.optInt("success", 0) == 1) {
-                    val backupHtml = backupJson.optString("html", "")
-                    val backupDoc = Jsoup.parse(backupHtml)
-                    val serverButtons = backupDoc.select("a[data-href]")
+                if (backupRes.isNotEmpty()) {
+                    val backupJson = JSONObject(backupRes)
+                    if (backupJson.optInt("success", 0) == 1) {
+                        val backupHtml = backupJson.optString("html", "")
+                        val backupDoc = Jsoup.parse(backupHtml)
+                        val serverButtons = backupDoc.select("a[data-href]")
 
-                    for (btn in serverButtons) {
-                        val dataHref = btn.attr("data-href")
-                        val dataPlay = btn.attr("data-play")
-                        val dataId = btn.attr("data-id")
-                        val serverTitle = btn.text().trim()
+                        for (btn in serverButtons) {
+                            val dataHref = btn.attr("data-href")
+                            val dataPlay = btn.attr("data-play")
+                            val dataId = btn.attr("data-id")
+                            val serverTitle = btn.text().trim().ifEmpty { "Server $dataId" }
 
-                        if (dataHref.isNotEmpty() && dataId != "0") {
-                            try {
-                                val sRes = app.post(
-                                    ajaxUrl,
-                                    headers = mapOf(
-                                        "X-Requested-With" to "XMLHttpRequest",
-                                        "Referer" to watchUrl
-                                    ),
-                                    data = mapOf(
-                                        "link" to dataHref,
-                                        "play" to dataPlay,
-                                        "id" to dataId,
-                                        "backuplinks" to "1"
+                            if (dataHref.isNotEmpty() && dataId != "0") {
+                                try {
+                                    val sRes = postAjaxWithCookie(
+                                        ajaxUrl,
+                                        mapOf(
+                                            "link" to dataHref,
+                                            "play" to dataPlay,
+                                            "id" to dataId,
+                                            "backuplinks" to "1"
+                                        ),
+                                        watchUrl
                                     )
-                                ).text
 
-                                val sJson = JSONObject(sRes)
-                                if (sJson.optInt("success", 0) == 1) {
-                                    val streamUrl = sJson.optString("link", "")
-
-                                    if (streamUrl.isNotEmpty()) {
-                                        if (streamUrl.contains(".m3u8")) {
-                                            callback.invoke(
-                                                ExtractorLink(
-                                                    source = name,
-                                                    name = "$serverTitle (M3U8)",
-                                                    url = streamUrl,
-                                                    referer = domain,
-                                                    quality = Qualities.P1080.value,
-                                                    type = ExtractorLinkType.M3U8
-                                                )
-                                            )
-                                        } else {
-                                            loadExtractor(streamUrl, domain, subtitleCallback, callback)
+                                    if (sRes.isNotEmpty()) {
+                                        val sJson = JSONObject(sRes)
+                                        if (sJson.optInt("success", 0) == 1) {
+                                            val streamUrl = sJson.optString("link", "")
+                                            if (streamUrl.isNotEmpty() && streamUrl != "null") {
+                                                if (streamUrl.contains(".m3u8")) {
+                                                    callback.invoke(
+                                                        ExtractorLink(
+                                                            source = name,
+                                                            name = "$serverTitle (M3U8)",
+                                                            url = streamUrl,
+                                                            referer = domain,
+                                                            quality = Qualities.P1080.value,
+                                                            type = ExtractorLinkType.M3U8
+                                                        )
+                                                    )
+                                                    hasValidLink = true
+                                                } else {
+                                                    val loaded = loadExtractor(streamUrl, domain, subtitleCallback, callback)
+                                                    if (loaded) hasValidLink = true
+                                                }
+                                            }
                                         }
                                     }
+                                } catch (_: Exception) {
                                 }
-                            } catch (ignored: Exception) {
                             }
                         }
                     }
                 }
             }
-        } catch (ignored: Exception) {
+        } catch (_: Exception) {
         }
 
-        return true
+        return hasValidLink
     }
 }
