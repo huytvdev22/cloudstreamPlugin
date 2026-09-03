@@ -246,4 +246,60 @@ public class TramphimLogicTest {
             System.out.println("   - [" + l.type + "] " + l.label + " -> " + l.url);
         }
     }
+
+    @Test
+    @Order(6)
+    @DisplayName("Test 06: Bóc tách danh sách tập từ API backup-servers (KKPhim direct M3U8, StreamC, VSmov)")
+    public void test06_ParseBackupServers() {
+        // 1. Mock JSON
+        String mockJson = "{\n" +
+                "  \"phimApiEpisodes\": [{\n" +
+                "    \"server_name\": \"Vietsub\",\n" +
+                "    \"server_data\": [{\n" +
+                "      \"name\": \"1\",\n" +
+                "      \"slug\": \"tap-1\",\n" +
+                "      \"link_m3u8\": \"https://v7.kkphimplayer7.com/20260831/test/index.m3u8\",\n" +
+                "      \"link_embed\": \"https://player.phimapi.com/player/?url=https://v7.kkphimplayer7.com/20260831/test/index.m3u8\"\n" +
+                "    }]\n" +
+                "  }],\n" +
+                "  \"nguoncEpisodes\": [{\n" +
+                "    \"server_name\": \"Vietsub #1\",\n" +
+                "    \"server_data\": [{\n" +
+                "      \"name\": \"1\",\n" +
+                "      \"slug\": \"tap-1\",\n" +
+                "      \"link_m3u8\": \"\",\n" +
+                "      \"link_embed\": \"https://embed14.streamc.xyz/embed.php?hash=test123456\"\n" +
+                "    }]\n" +
+                "  }]\n" +
+                "}";
+
+        List<EpisodeItem> episodes = TramphimLogic.parseBackupServers(mockJson, BASE_URL);
+        assertNotNull(episodes);
+        assertEquals(2, episodes.size());
+        assertEquals("https://v7.kkphimplayer7.com/20260831/test/index.m3u8", episodes.get(0).href);
+        assertTrue(episodes.get(0).name.contains("KKPhim"));
+        assertEquals("https://embed14.streamc.xyz/embed.php?hash=test123456", episodes.get(1).href);
+        assertTrue(episodes.get(1).name.contains("NguồnC"));
+        System.out.println("✅ Mock parseBackupServers thành công với " + episodes.size() + " tập!");
+
+        // 2. Test Live Network backup-servers API
+        try {
+            String slug = "xich-cuoc-dai-tien";
+            String apiUrl = TramphimLogic.buildBackupServersUrl(BASE_URL, slug, "Xích Cước Đại Tiên");
+            Connection.Response res = Jsoup.connect(apiUrl)
+                    .userAgent(USER_AGENT)
+                    .ignoreContentType(true)
+                    .timeout(10000)
+                    .execute();
+            List<EpisodeItem> liveEps = TramphimLogic.parseBackupServers(res.body(), BASE_URL);
+            assertNotNull(liveEps);
+            assertFalse(liveEps.isEmpty(), "Live backup-servers phải có tập");
+            System.out.println("✅ Live parseBackupServers cho '" + slug + "' có " + liveEps.size() + " tập:");
+            for (EpisodeItem ep : liveEps) {
+                System.out.println("   - " + ep.name + " -> " + ep.href);
+            }
+        } catch (Exception e) {
+            System.out.println("⚠️ Bỏ qua test live backup-servers: " + e.getMessage());
+        }
+    }
 }

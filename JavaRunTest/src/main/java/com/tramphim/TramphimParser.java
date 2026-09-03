@@ -372,9 +372,24 @@ public class TramphimParser implements MovieParser {
             }
         }
 
-        // Fallback: nếu vẫn không có tập (ví dụ phim lẻ 1 tập Full)
+        // Fallback: nếu vẫn không có tập, thử tìm link trang xem /xem/{slug}
         if (epMap.isEmpty()) {
-            epMap.put(base, new EpisodeItem(base, "Full", 1));
+            Element xemEl = doc.selectFirst("a[href*='/xem/']");
+            if (xemEl != null) {
+                String xemHref = xemEl.attr("href").trim();
+                String absXemUrl = HtmlHelper.getAbsoluteUrl(base, doc.createElement("a").attr("href", xemHref), "href");
+                epMap.put(absXemUrl, new EpisodeItem(absXemUrl, "Xem Phim", 1));
+            } else {
+                Element ogUrl = doc.selectFirst("meta[property='og:url']");
+                String pageUrl = (ogUrl != null) ? ogUrl.attr("content").trim() : "";
+                if (pageUrl.contains("/phim/")) {
+                    String slug = pageUrl.substring(pageUrl.indexOf("/phim/") + 6).replaceAll("[/?#].*", "");
+                    if (!slug.isEmpty()) {
+                        String watchUrl = base + "/xem/" + slug;
+                        epMap.put(watchUrl, new EpisodeItem(watchUrl, "Xem Phim", 1));
+                    }
+                }
+            }
         }
 
         episodes.addAll(epMap.values());
@@ -565,12 +580,9 @@ public class TramphimParser implements MovieParser {
                     } catch (Exception ignored) {}
                 }
 
+                // Không thêm ?d=1 để StreamC server trả về playlist HLS M3U8 nguyên bản không mã hóa
                 String streamUrl = origin + "/" + sUb;
-                links.add(new VideoLink(VideoLink.TYPE_M3U8, streamUrl, "StreamC HLS (AES-GCM)", "StreamC VIP", "Vietsub"));
-
-                // Lưu thêm videoHash trong label hoặc server name để adapter có thể dùng
-                String streamUrlWithHash = streamUrl + "#hash=" + videoHash;
-                links.add(new VideoLink(VideoLink.TYPE_M3U8, streamUrlWithHash, "StreamC HLS Playlist", "StreamC", videoHash));
+                links.add(new VideoLink(VideoLink.TYPE_M3U8, streamUrl, "StreamC VIP 1080p (HLS)", "StreamC", videoHash));
             }
         } catch (Exception ignored) {}
         return links;
@@ -643,6 +655,101 @@ public class TramphimParser implements MovieParser {
                     + Character.digit(hex.charAt(i + 1), 16));
         }
         return data;
+    }
+
+    // =========================================================================
+    // 4.1. BÓC TÁCH MÁY CHỦ DỰ PHÒNG & LINK TRỰC TIẾP (BACKUP SERVERS API)
+    // =========================================================================
+
+    /**
+     * Bóc tách danh sách tập phim từ JSON trả về của API /api/backup-servers.
+     * Hỗ trợ đa máy chủ: KKPhim (direct M3U8), NguồnC (StreamC), VSmov, ViCDN.
+     *
+     * @param jsonStr Nội dung JSON từ endpoint /api/backup-servers
+     * @param baseUrl Domain gốc (ví dụ https://tramphim4.org)
+     * @return Danh sách các tập phim EpisodeItem
+     */
+    public List<EpisodeItem> parseBackupServers(String jsonStr, String baseUrl) {
+        List<EpisodeItem> episodes = new ArrayList<>();
+        if (jsonStr == null || jsonStr.trim().isEmpty()) {
+            return episodes;
+        }
+
+        try {
+            JSONObject data = new JSONObject(jsonStr);
+            String[] serverKeys = new String[]{"phimApiEpisodes", "nguoncEpisodes", "vsmovEpisodes", "vicdnEpisodes"};
+            Set<String> seenUrls = new HashSet<>();
+
+            for (String key : serverKeys) {
+                JSONArray servers = data.optJSONArray(key);
+                if (servers == null || servers.length() == 0) continue;
+
+                String providerPrefix = "Server";
+                if ("phimApiEpisodes".equals(key)) providerPrefix = "KKPhim";
+                else if ("nguoncEpisodes".equals(key)) providerPrefix = "NguồnC";
+                else if ("vsmovEpisodes".equals(key)) providerPrefix = "VSmov";
+                else if ("vicdnEpisodes".equals(key)) providerPrefix = "ViCDN";
+
+                for (int i = 0; i < servers.length(); i++) {
+                    JSONObject server = servers.optJSONObject(i);
+                    if (server == null) continue;
+
+                    String rawServerName = server.optString("server_name", "").trim();
+                    JSONArray serverData = server.optJSONArray("server_data");
+                    if (serverData == null || serverData.length() == 0) continue;
+
+                    String serverLabel = providerPrefix;
+                    if (!rawServerName.isEmpty() && !rawServerName.toLowerCase().contains(providerPrefix.toLowerCase())) {
+                        serverLabel = providerPrefix + " " + rawServerName;
+                    }
+
+                    for (int j = 0; j < serverData.length(); j++) {
+                        JSONObject ep = serverData.optJSONObject(j);
+                        if (ep == null) continue;
+
+                        String rawName = ep.optString("name", "").trim();
+                        String linkM3u8 = ep.optString("link_m3u8", "").trim();
+                        String linkEmbed = ep.optString("link_embed", "").trim();
+                        String slug = ep.optString("slug", "").trim();
+
+                        // Ưu tiên direct M3U8 (từ KKPhim) trước, sau đó là link embed
+                        String epUrl = !linkM3u8.isEmpty() ? linkM3u8 : (!linkEmbed.isEmpty() ? linkEmbed : slug);
+                        if (epUrl.isEmpty() || seenUrls.contains(epUrl)) continue;
+                        seenUrls.add(epUrl);
+
+                        Integer epNum = RegexHelper.parseInt(rawName, "(\\d+)");
+                        if (epNum == null) epNum = j + 1;
+
+                        String formattedName = rawName;
+                        if (formattedName.isEmpty()) {
+                            formattedName = "Tập " + epNum;
+                        } else if (!formattedName.toLowerCase().startsWith("tập") && !formattedName.equalsIgnoreCase("full")) {
+                            formattedName = "Tập " + formattedName;
+                        }
+
+                        String displayName = formattedName + " (" + serverLabel + ")";
+                        episodes.add(new EpisodeItem(epUrl, displayName, epNum));
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return episodes;
+    }
+
+    /**
+     * Tạo URL gọi API máy chủ dự phòng /api/backup-servers.
+     */
+    public String buildBackupServersUrl(String baseUrl, String slug, String title) {
+        String base = (baseUrl != null && !baseUrl.isEmpty()) ? cleanDomain(baseUrl) : DEFAULT_BASE_URL;
+        String cleanSlug = slug != null ? slug.trim() : "";
+        String encodedTitle = "";
+        try {
+            encodedTitle = URLEncoder.encode(title != null ? title.trim() : cleanSlug, "UTF-8");
+        } catch (Exception e) {
+            encodedTitle = cleanSlug;
+        }
+        return base + "/api/backup-servers?slug=" + cleanSlug + "&name=" + encodedTitle + "&origin_name=" + cleanSlug;
     }
 
     // =========================================================================

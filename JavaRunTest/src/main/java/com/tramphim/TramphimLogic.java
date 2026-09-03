@@ -91,6 +91,14 @@ public class TramphimLogic {
         return TramphimParser.getInstance().decryptStreamcM3u8(encryptedM3u8, videoHash);
     }
 
+    public static List<com.cloudstream.core.model.EpisodeItem> parseBackupServers(String jsonStr, String baseUrl) {
+        return TramphimParser.getInstance().parseBackupServers(jsonStr, baseUrl);
+    }
+
+    public static String buildBackupServersUrl(String baseUrl, String slug, String title) {
+        return TramphimParser.getInstance().buildBackupServersUrl(baseUrl, slug, title);
+    }
+
     public static String buildSearchUrl(String baseUrl, String query, int page) {
         return TramphimParser.getInstance().buildSearchUrl(baseUrl, query, page);
     }

@@ -163,17 +163,45 @@ class TramphimProvider : MainAPI() {
 
         val html = app.get(targetUrl).text
 
-        // Delegate logic parse sang TramphimLogic
+        // Delegate logic parse cơ bản sang TramphimLogic
         val detail = TramphimLogic.parseMovieDetail(html, domain)
 
-        val episodesList = detail.episodes.map { ep ->
+        // Trích xuất slug của bộ phim
+        val slug = targetUrl.trimEnd('/').substringAfterLast("/").substringBefore("?")
+
+        // Gọi API máy chủ dự phòng (/api/backup-servers) để lấy multi-servers (KKPhim, StreamC, VSmov, ViCDN)
+        val allEpisodes = mutableListOf<com.cloudstream.core.model.EpisodeItem>()
+
+        // 1. Lấy danh sách tập từ API backup-servers (hỗ trợ direct M3U8 từ KKPhim & StreamC)
+        try {
+            val backupUrl = TramphimLogic.buildBackupServersUrl(domain, slug, detail.title)
+            val backupJson = app.get(backupUrl, referer = targetUrl, timeout = 6).text
+            val backupEps = TramphimLogic.parseBackupServers(backupJson, domain)
+            if (backupEps.isNotEmpty()) {
+                allEpisodes.addAll(backupEps)
+            }
+        } catch (ignored: Exception) {
+        }
+
+        // 2. Bổ sung các tập từ HTML detail nếu chưa có trong danh sách
+        if (detail.episodes.isNotEmpty()) {
+            val existingUrls = allEpisodes.map { it.href }.toSet()
+            for (ep in detail.episodes) {
+                if (!existingUrls.contains(ep.href) && !ep.href.equals(domain, ignoreCase = true)) {
+                    allEpisodes.add(ep)
+                }
+            }
+        }
+
+        val episodesList = allEpisodes.map { ep ->
             newEpisode(ep.href) {
                 this.name = ep.name
                 this.episode = ep.episodeNum
             }
         }
 
-        return if (episodesList.size > 1) {
+        val isSeries = episodesList.size > 1
+        return if (isSeries) {
             newTvSeriesLoadResponse(detail.title, url, TvType.TvSeries, episodesList) {
                 this.posterUrl = detail.posterUrl
                 this.plot = detail.plot
@@ -186,7 +214,7 @@ class TramphimProvider : MainAPI() {
                 detail.title,
                 url,
                 TvType.Movie,
-                episodesList.firstOrNull()?.data ?: url
+                episodesList.firstOrNull()?.data ?: targetUrl
             ) {
                 this.posterUrl = detail.posterUrl
                 this.plot = detail.plot
@@ -211,11 +239,15 @@ class TramphimProvider : MainAPI() {
 
         // 1. Trường hợp data là direct M3U8 URL (từ KKPhim hoặc nguồn khác)
         if (data.contains(".m3u8")) {
+            val cleanM3u8 = if (data.contains("url=")) {
+                java.net.URLDecoder.decode(data.substringAfter("url=").substringBefore("&"), "UTF-8")
+            } else data
+
             callback.invoke(
                 ExtractorLink(
-                    source = name,
-                    name = "$name VIP",
-                    url = data,
+                    source = "KKPhim",
+                    name = "$name (KKPhim VIP)",
+                    url = cleanM3u8,
                     referer = "$domain/",
                     quality = Qualities.P1080.value,
                     type = ExtractorLinkType.M3U8
@@ -229,34 +261,96 @@ class TramphimProvider : MainAPI() {
             return processStreamcEmbed(data, domain, subtitleCallback, callback)
         }
 
-        // 3. Trường hợp data là URL trang xem phim của Trạm Phim
-        val targetMovieUrl = if (data.startsWith("http")) data else "$domain$data"
-        val html = app.get(targetMovieUrl).text
+        // 3. Trường hợp player.phimapi.com có nhúng query url=.m3u8
+        if (data.contains("player.phimapi.com") && data.contains("url=")) {
+            try {
+                val m3u8Url = java.net.URLDecoder.decode(data.substringAfter("url=").substringBefore("&"), "UTF-8")
+                if (m3u8Url.contains(".m3u8")) {
+                    callback.invoke(
+                        ExtractorLink(
+                            source = "KKPhim",
+                            name = "$name VIP 1080p",
+                            url = m3u8Url,
+                            referer = "$domain/",
+                            quality = Qualities.P1080.value,
+                            type = ExtractorLinkType.M3U8
+                        )
+                    )
+                    return true
+                }
+            } catch (ignored: Exception) {
+            }
+        }
 
-        val videoLinks = TramphimLogic.extractVideoLinks(html, data)
+        // 4. Trường hợp VSmov hoặc ViCDN hoặc embed extractor khác
+        if (data.contains("streamvsmov.com") || data.contains("vicdn.cc")) {
+            return loadExtractor(data, "$domain/", subtitleCallback, callback)
+        }
+
         var foundAny = false
 
-        for (link in videoLinks) {
-            if (link.url.contains("streamc.xyz")) {
-                if (processStreamcEmbed(link.url, domain, subtitleCallback, callback)) {
-                    foundAny = true
+        // 5. Trường hợp data là URL trang xem hoặc slug phim (ví dụ /phim/..., /xem/...)
+        val cleanSlug = data.trimEnd('/').substringAfterLast("/").substringBefore("?")
+        if (cleanSlug.isNotEmpty() && !cleanSlug.startsWith("http")) {
+            try {
+                val backupUrl = TramphimLogic.buildBackupServersUrl(domain, cleanSlug, cleanSlug)
+                val backupJson = app.get(backupUrl, referer = "$domain/", timeout = 6).text
+                val backupEps = TramphimLogic.parseBackupServers(backupJson, domain)
+                for (ep in backupEps) {
+                    if (ep.href.contains(".m3u8")) {
+                        callback.invoke(
+                            ExtractorLink(
+                                source = ep.name,
+                                name = ep.name,
+                                url = ep.href,
+                                referer = "$domain/",
+                                quality = Qualities.P1080.value,
+                                type = ExtractorLinkType.M3U8
+                            )
+                        )
+                        foundAny = true
+                    } else if (ep.href.contains("streamc.xyz")) {
+                        if (processStreamcEmbed(ep.href, domain, subtitleCallback, callback)) {
+                            foundAny = true
+                        }
+                    } else if (loadExtractor(ep.href, "$domain/", subtitleCallback, callback)) {
+                        foundAny = true
+                    }
                 }
-            } else if (link.type == TramphimLogic.VideoLink.TYPE_M3U8) {
-                callback.invoke(
-                    ExtractorLink(
-                        source = link.serverName ?: name,
-                        name = link.label ?: "$name M3U8",
-                        url = link.url,
-                        referer = "$domain/",
-                        quality = Qualities.P1080.value,
-                        type = ExtractorLinkType.M3U8
-                    )
-                )
-                foundAny = true
-            } else if (link.type == TramphimLogic.VideoLink.TYPE_EMBED) {
-                loadExtractor(link.url, domain, subtitleCallback, callback)
-                foundAny = true
+            } catch (ignored: Exception) {
             }
+        }
+
+        // 6. Trường hợp cào thêm link từ HTML của trang xem
+        try {
+            val targetMovieUrl = if (data.startsWith("http")) data else "$domain$data"
+            val html = app.get(targetMovieUrl).text
+            val videoLinks = TramphimLogic.extractVideoLinks(html, data)
+
+            for (link in videoLinks) {
+                if (link.url.contains("streamc.xyz")) {
+                    if (processStreamcEmbed(link.url, domain, subtitleCallback, callback)) {
+                        foundAny = true
+                    }
+                } else if (link.type == TramphimLogic.VideoLink.TYPE_M3U8) {
+                    callback.invoke(
+                        ExtractorLink(
+                            source = link.serverName ?: name,
+                            name = link.label ?: "$name M3U8",
+                            url = link.url,
+                            referer = "$domain/",
+                            quality = Qualities.P1080.value,
+                            type = ExtractorLinkType.M3U8
+                        )
+                    )
+                    foundAny = true
+                } else if (link.type == TramphimLogic.VideoLink.TYPE_EMBED) {
+                    if (loadExtractor(link.url, domain, subtitleCallback, callback)) {
+                        foundAny = true
+                    }
+                }
+            }
+        } catch (ignored: Exception) {
         }
 
         return foundAny
@@ -276,60 +370,39 @@ class TramphimProvider : MainAPI() {
             val embedHtml = app.get(embedUrl, referer = "$domain/").text
             val links = TramphimLogic.extractVideoLinks(embedHtml, embedUrl)
 
+            val embedOrigin = if (embedUrl.startsWith("http")) {
+                val uri = java.net.URI(embedUrl)
+                "${uri.scheme}://${uri.host}"
+            } else "https://embed14.streamc.xyz"
+
+            val embedReferer = "$embedOrigin/"
+            var found = false
+
             for (link in links) {
-                val streamUrl = link.url.substringBefore("#")
-                val hashFromUrl = if (link.url.contains("#hash=")) link.url.substringAfter("#hash=") else ""
+                // Đảm bảo URL stream M3U8 không chứa ?d=1 để server trả về M3U8 nguyên bản không mã hóa
+                val rawUrl = link.url.substringBefore("#")
+                val streamUrl = if (rawUrl.contains("?d=")) {
+                    rawUrl.substringBefore("?d=")
+                } else rawUrl
 
-                // Gửi stream URL với header Referer tới embed page
-                val embedOrigin = if (embedUrl.startsWith("http")) {
-                    val uri = java.net.URI(embedUrl)
-                    "${uri.scheme}://${uri.host}"
-                } else "https://embed14.streamc.xyz"
-
-                val embedReferer = "$embedOrigin/"
-
-                // Thử giải mã nội dung M3U8 sang dạng Data URI nếu có hash
-                if (hashFromUrl.isNotEmpty()) {
-                    try {
-                        val encryptedM3u8 = app.get(streamUrl, referer = embedUrl).text
-                        val decryptedM3u8 = TramphimLogic.decryptStreamcM3u8(encryptedM3u8, hashFromUrl)
-
-                        if (decryptedM3u8.contains("#EXTM3U")) {
-                            // Tạo Data URI cho M3U8 đã giải mã
-                            val base64M3u8 = Base64.encodeToString(
-                                decryptedM3u8.toByteArray(Charsets.UTF_8),
-                                Base64.NO_WRAP
-                            )
-                            val dataUri = "data:application/vnd.apple.mpegurl;base64,$base64M3u8"
-
-                            callback.invoke(
-                                ExtractorLink(
-                                    source = "StreamC (Decrypted)",
-                                    name = "StreamC VIP 1080p (M3U8 Đã Giải Mã)",
-                                    url = dataUri,
-                                    referer = embedReferer,
-                                    quality = Qualities.P1080.value,
-                                    type = ExtractorLinkType.M3U8
-                                )
-                            )
-                        }
-                    } catch (ignored: Exception) {
-                    }
-                }
-
-                // Luôn cung cấp luồng HLS trực tiếp kèm Referer
+                // Cung cấp luồng HLS trực tiếp kèm Referer trang embed
                 callback.invoke(
                     ExtractorLink(
-                        source = "StreamC HLS",
-                        name = "StreamC Server VIP (HLS)",
+                        source = "StreamC",
+                        name = "StreamC Server VIP (HLS 1080p)",
                         url = streamUrl,
                         referer = embedReferer,
                         quality = Qualities.P1080.value,
-                        type = ExtractorLinkType.M3U8
+                        type = ExtractorLinkType.M3U8,
+                        headers = mapOf(
+                            "Referer" to embedReferer,
+                            "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+                        )
                     )
                 )
+                found = true
             }
-            return links.isNotEmpty()
+            return found
         } catch (e: Exception) {
             return false
         }
