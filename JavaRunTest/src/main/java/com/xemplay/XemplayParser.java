@@ -202,6 +202,7 @@ public class XemplayParser implements MovieParser {
 
             // Trích xuất poster URL
             String posterUrl = extractPosterUrl(img, base);
+            if (posterUrl == null || posterUrl.trim().isEmpty()) continue;
 
             // Trích xuất tiêu đề phim
             String title = extractTitle(link, img);
@@ -582,9 +583,24 @@ public class XemplayParser implements MovieParser {
 
     private String extractPosterUrl(Element img, String base) {
         if (img == null) return "";
-        String src = img.attr("src");
-        if (src.isEmpty()) {
-            src = img.attr("data-src");
+        String src = "";
+        if (img.hasAttr("data-src") && !img.attr("data-src").trim().isEmpty()) {
+            src = img.attr("data-src").trim();
+        } else if (img.hasAttr("data-original") && !img.attr("data-original").trim().isEmpty()) {
+            src = img.attr("data-original").trim();
+        } else if (img.hasAttr("src") && !img.attr("src").trim().isEmpty()) {
+            src = img.attr("src").trim();
+        }
+
+        // Bỏ qua nếu là placeholder data URI
+        if (src.startsWith("data:image")) {
+            if (img.hasAttr("data-src") && !img.attr("data-src").trim().isEmpty()) {
+                src = img.attr("data-src").trim();
+            } else if (img.hasAttr("data-original") && !img.attr("data-original").trim().isEmpty()) {
+                src = img.attr("data-original").trim();
+            } else {
+                return "";
+            }
         }
 
         // Xử lý link ảnh Next.js tối ưu /_next/image?url=...
@@ -598,10 +614,25 @@ public class XemplayParser implements MovieParser {
             }
         }
 
+        if (src.startsWith("//")) {
+            return "https:" + src;
+        }
+
         if (src.startsWith("http://") || src.startsWith("https://")) {
             return src;
         }
-        return HtmlHelper.getAbsoluteUrl(base, img, "src");
+
+        // Các ảnh vod upload/vod/... hoặc uploads/movies/... được lưu trữ thực tế trên CDN phimimg.com
+        if (src.startsWith("upload/") || src.startsWith("/upload/")
+                || src.startsWith("uploads/") || src.startsWith("/uploads/")) {
+            String path = src.startsWith("/") ? src.substring(1) : src;
+            return "https://phimimg.com/" + path;
+        }
+
+        if (src.startsWith("/")) {
+            return base + src;
+        }
+        return base + "/" + src;
     }
 
     private List<String> extractBadges(Element card) {

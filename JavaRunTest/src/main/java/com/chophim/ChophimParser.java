@@ -598,9 +598,9 @@ public class ChophimParser implements MovieParser {
         // Encode query
         try {
             String encoded = java.net.URLEncoder.encode(cleanedQuery, "UTF-8");
-            return base + "/api/film/tim-kiem?q=" + encoded + "&page=" + page;
+            return base + "/api/film/tim-kiem?keyword=" + encoded + "&page=" + page;
         } catch (Exception e) {
-            return base + "/api/film/tim-kiem?q=" + cleanedQuery + "&page=" + page;
+            return base + "/api/film/tim-kiem?keyword=" + cleanedQuery + "&page=" + page;
         }
     }
 

@@ -98,7 +98,11 @@ class ChophimProvider : MainAPI() {
      * - Badges: Tự động gán nhãn Vietsub, Thuyết Minh, Lồng Tiếng, Chất lượng, Số tập
      * - DubStatus: Bật biểu tượng SUB / DUB tương ứng trên poster
      */
-    private fun toSearchResponse(item: MovieItem): SearchResponse {
+    private fun toSearchResponse(item: MovieItem): SearchResponse? {
+        if (item.title.isNullOrBlank() || item.href.isNullOrBlank() || item.posterUrl.isNullOrBlank()) {
+            return null
+        }
+
         val hasDub = item.tags.any { it == "LT" || it == "TM" || it == "SN" }
         val hasSub = item.tags.any { it == "VS" || it == "SN" }
 

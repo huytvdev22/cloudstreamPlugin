@@ -261,7 +261,11 @@ class AnimeVietsubProvider : MainAPI() {
         return search(query, 1).items
     }
 
-    private fun toSearchResponse(item: MovieItem): SearchResponse {
+    private fun toSearchResponse(item: MovieItem): SearchResponse? {
+        if (item.title.isNullOrBlank() || item.href.isNullOrBlank() || item.posterUrl.isNullOrBlank()) {
+            return null
+        }
+
         val hasDub = item.tags.any { it.contains("Lồng", ignoreCase = true) || it.contains("Thuyết", ignoreCase = true) }
         val hasSub = item.tags.any { it.contains("Sub", ignoreCase = true) || it.contains("Viet", ignoreCase = true) }
 

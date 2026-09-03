@@ -97,14 +97,14 @@ public class ChophimLogicTest {
     public void testSearch() {
         // 1. Kiểm tra buildSearchUrl
         String searchUrl = ChophimLogic.buildSearchUrl(BASE_URL, "doraemon", 1);
-        assertTrue(searchUrl.contains("tim-kiem?q=doraemon"));
+        assertTrue(searchUrl.contains("tim-kiem?keyword=doraemon"));
 
         String tagUrl = ChophimLogic.buildSearchUrl(BASE_URL, "naruto #phimbo", 1);
         assertTrue(tagUrl.contains("danh-sach/phim-bo"));
 
         // 2. Live search test
         try {
-            String apiUrl = API_BASE_URL + "/tim-kiem?q=doraemon&page=1";
+            String apiUrl = API_BASE_URL + "/tim-kiem?keyword=doraemon&page=1";
             String json = Jsoup.connect(apiUrl)
                     .userAgent(USER_AGENT)
                     .ignoreContentType(true)

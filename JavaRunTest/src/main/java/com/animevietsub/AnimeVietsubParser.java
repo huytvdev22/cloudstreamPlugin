@@ -109,7 +109,7 @@ public class AnimeVietsubParser implements MovieParser {
         if (html == null || html.trim().isEmpty()) return result;
 
         Document doc = Jsoup.parse(html, baseUrl);
-        Elements items = doc.select(".TPostMv, .TPost, .item, .film-item, article, li:has(a[href*=/phim/]), a[href*=/phim/]");
+        Elements items = doc.select(".TPostMv, .TPost, .film-item, article, li:has(a[href*=/phim/])");
         List<String> seenHrefs = new ArrayList<>();
 
         for (Element el : items) {
@@ -121,7 +121,6 @@ public class AnimeVietsubParser implements MovieParser {
 
             String href = normalizeUrl(rawHref, baseUrl);
             if (seenHrefs.contains(href)) continue;
-            seenHrefs.add(href);
 
             // Tiêu đề
             String title = "";
@@ -133,16 +132,42 @@ public class AnimeVietsubParser implements MovieParser {
             }
             if (title.isEmpty()) continue;
 
-            // Poster image
+            // Poster image: bắt buộc phải có ảnh hợp lệ
             Element imgEl = el.selectFirst("img");
-            String posterUrl = null;
-            if (imgEl != null) {
+            if (imgEl == null) continue;
+
+            String posterUrl = "";
+            if (imgEl.hasAttr("data-src") && !imgEl.attr("data-src").trim().isEmpty()) {
+                posterUrl = imgEl.attr("data-src").trim();
+            } else if (imgEl.hasAttr("data-original") && !imgEl.attr("data-original").trim().isEmpty()) {
+                posterUrl = imgEl.attr("data-original").trim();
+            } else if (imgEl.hasAttr("src") && !imgEl.attr("src").trim().isEmpty()) {
+                posterUrl = imgEl.attr("src").trim();
+            }
+
+            // Bỏ qua placeholder
+            if (posterUrl.startsWith("data:image")) {
                 if (imgEl.hasAttr("data-src") && !imgEl.attr("data-src").trim().isEmpty()) {
                     posterUrl = imgEl.attr("data-src").trim();
-                } else if (imgEl.hasAttr("src") && !imgEl.attr("src").trim().isEmpty()) {
-                    posterUrl = imgEl.attr("src").trim();
+                } else if (imgEl.hasAttr("data-original") && !imgEl.attr("data-original").trim().isEmpty()) {
+                    posterUrl = imgEl.attr("data-original").trim();
+                } else {
+                    continue;
                 }
             }
+
+            if (posterUrl.isEmpty()) continue;
+
+            // Chuẩn hóa posterUrl thành URL tuyệt đối
+            if (posterUrl.startsWith("//")) {
+                posterUrl = "https:" + posterUrl;
+            } else if (posterUrl.startsWith("/")) {
+                posterUrl = baseUrl + posterUrl;
+            } else if (!posterUrl.startsWith("http://") && !posterUrl.startsWith("https://")) {
+                posterUrl = baseUrl + "/" + posterUrl;
+            }
+
+            seenHrefs.add(href);
 
             // Badges / Tags (Tập số, Vietsub, Thuyết minh, Season...)
             List<String> badges = new ArrayList<>();
